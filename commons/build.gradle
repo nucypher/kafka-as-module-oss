@@ -1,0 +1,31 @@
+apply plugin: 'com.github.hauner.jarTest'
+
+group 'com.nucypher.kafka'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+jar {
+    archiveName = "nucypher-kafka-commons-${version}.${extension}"
+}
+
+dependencies {
+
+    compile project(':crypto')
+    compile project(':kafka:clients')
+
+    compile "org.slf4j:slf4j-api:$slf4jVersion"
+    compile("org.apache.logging.log4j:log4j-slf4j-impl:$log4jVersion")
+    compile("org.apache.logging.log4j:log4j-1.2-api:$log4jVersion")
+
+	compile "org.bouncycastle:bcpkix-jdk15on:$bouncyCastleVersion"
+
+    compile "org.apache.avro:avro:$avroVersion"
+    compile "org.projectlombok:lombok:$lombokVersion"
+    compile "com.google.guava:guava:$guavaVersion"
+
+    testCompile "junit:junit:$junitVersion"
+
+    testCompile "org.spockframework:spock-core:$spockVersion"
+    testCompile "cglib:cglib-nodep:$cglibVersion"
+}

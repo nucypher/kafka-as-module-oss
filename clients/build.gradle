@@ -1,0 +1,16 @@
+group 'com.nucypher.kafka'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+jar {
+    archiveName = "nucypher-kafka-clients-${version}.${extension}"
+}
+
+dependencies {
+
+    compile project(':commons')
+
+    testCompile project(path: ':commons', configuration: 'testArchives')
+    testCompile "org.spockframework:spock-core:$spockVersion"
+}

@@ -1,0 +1,26 @@
+apply plugin: 'java'
+
+group 'com.nucypher.kafka'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+jar {
+    archiveName = "nucypher-kafka-proxy-${version}.${extension}"
+}
+
+dependencies {
+
+    compile project(':clients')
+    compile project(':kafka:clients')
+    compile (project(':kafka:core')) {
+        exclude group: "org.slf4j", module: 'slf4j-api'
+        exclude group: "org.slf4j", module: 'slf4j-log4j12'
+        exclude group: "log4j", module: 'log4j'
+    }
+    compile "commons-io:commons-io:$commonsIOVersion"
+
+    testCompile "org.spockframework:spock-core:$spockVersion"
+    testCompile "junit:junit:$junitVersion"
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
+}

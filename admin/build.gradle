@@ -1,0 +1,64 @@
+group 'com.nucypher.kafka'
+
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+apply plugin: 'maven'
+apply plugin: 'application'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+mainClassName = 'com.nucypher.kafka.admin.Console'
+applicationName = 'nucypher-kafka-admin'
+
+dependencies {
+    compile project(':commons')
+    compile project(':granular')
+
+    compile "org.apache.logging.log4j:log4j-slf4j-impl:$log4jVersion"
+    compile "org.apache.logging.log4j:log4j-1.2-api:$log4jVersion"
+    compile "net.sf.jopt-simple:jopt-simple:$joptSimpleVersion"
+    compile("com.101tec:zkclient:$zkclientVersion") {
+        exclude group: "org.slf4j", module: 'slf4j-api'
+        exclude group: "org.slf4j", module: 'slf4j-log4j12'
+        exclude group: "log4j", module: 'log4j'
+    }
+
+    testCompile project(path: ':granular', configuration: 'testArchives')
+    testCompile "junit:junit:$junitVersion"
+    testCompile "org.apache.curator:curator-test:$curatorVersion"
+    testCompile "org.apache.curator:curator-framework:$curatorVersion"
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    testCompile "org.powermock:powermock-api-mockito:$powermockVersion"
+    testCompile "org.powermock:powermock-module-junit4:$powermockVersion"
+    testCompile "org.powermock:powermock-module-junit4-rule:$powermockVersion"
+}
+
+compileJava {
+    options.encoding = 'UTF-8'
+}
+
+task copyToLib(type: Copy) {
+
+    into "$buildDir/libs/lib"
+    from configurations.runtime
+
+    doLast {
+        jar {
+            archiveName = "$applicationName-${version}.${extension}"
+
+            manifest {
+				attributes("Main-Class": mainClassName)
+                attributes("Class-Path": configurations.runtime.collect { "lib/$it.name" }.join(' '))
+            }
+        }
+    }
+
+}
+
+jar.dependsOn copyToLib
+
+applicationDistribution.from("config-example/") {
+    into "config-example"
+}

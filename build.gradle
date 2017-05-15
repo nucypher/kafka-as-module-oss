@@ -1,0 +1,74 @@
+description = 'NuCypher Kafka'
+
+group 'nucypher-kafka-as-module'
+
+task wrapper(type: Wrapper) {
+    gradleVersion = "$gradleRootVersion"
+}
+
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven {
+	      url "https://plugins.gradle.org/m2/"
+	    }
+	    jcenter()
+    }
+    
+	dependencies {
+		classpath "gradle.plugin.gradle-plugins:jartest:1.0"
+		classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
+	}
+
+}
+
+allprojects {
+    group = 'com.nucypher.kafka.encrypted'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven {
+            url "http://packages.confluent.io/maven/"
+        }
+    }
+
+    ext {
+
+        rootKafkaSubPath = ':kafka'
+
+        forceGroup = [
+//                'org.slf4j'                 : "$slf4jVersion",
+//                'ch.qos.logback'            : "$logbackVersion"
+        ]
+
+        replaceArtifact = [
+//                'commons-logging:commons-logging': "org.slf4j:jcl-over-slf4j:$slf4jVersion",
+//                'log4j:log4j'                    : "org.slf4j:log4j-over-slf4j:$slf4jVersion",
+//                'org.slf4j:slf4j-log4j12'        : "org.slf4j:slf4j-api:$slf4jVersion"
+        ]
+    }
+
+    apply plugin: 'java'
+    apply plugin: 'groovy'
+    apply plugin: 'idea'
+    apply plugin: 'eclipse'
+
+}
+
+subprojects { subProject ->
+
+    apply from: file("${rootProject.projectDir}/dependencies_libs.gradle")
+
+    dependencies {
+        compile "org.bouncycastle:bcprov-jdk15on:$bouncyCastleVersion"
+        compile "org.bouncycastle:bcpkix-jdk15on:$bouncyCastleVersion"
+    }
+
+    compileJava.mustRunAfter clean
+
+    [compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'
+}
+
+

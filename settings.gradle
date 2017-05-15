@@ -1,0 +1,54 @@
+include 'admin'
+include 'commons'
+include 'clients'
+include 'examples'
+include 'proxy'
+
+///////////////////////////////////////////////////
+//
+// As git submodules
+//
+
+// https://github.com/nucypher/nucypher-crypto-oss.git
+include 'crypto'
+project(':crypto').projectDir= new File('crypto')
+
+include 'granular'
+project(':granular').projectDir= new File('granular')
+
+// https://github.com/nucypher/kafka.git
+include 'kafka'
+project(':kafka').projectDir = new File('kafka')
+
+include 'kafka:core'
+project(':kafka:core').projectDir = new File('kafka/core')
+
+include 'kafka:clients'
+project(':kafka:clients').projectDir = new File('kafka/clients')
+
+include 'kafka:examples'
+project(':kafka:examples').projectDir = new File('kafka/examples')
+
+include 'kafka:streams'
+project(':kafka:streams').projectDir = new File('kafka/streams')
+
+include 'kafka:streams:examples'
+project(':kafka:streams:examples').projectDir = new File('kafka/streams/examples')
+
+include 'kafka:tools'
+project(':kafka:tools').projectDir = new File('kafka/tools')
+
+include 'kafka:connect:api'
+project(':kafka:connect:api').projectDir = new File('kafka/connect/api')
+
+include 'kafka:connect:file'
+project(':kafka:connect:file').projectDir = new File('kafka/connect/file')
+
+include 'kafka:connect:json'
+project(':kafka:connect:json').projectDir = new File('kafka/connect/json')
+
+include 'kafka:connect:runtime'
+project(':kafka:connect:runtime').projectDir = new File('kafka/connect/runtime')
+
+include 'kafka:log4j-appender'
+project(':kafka:log4j-appender').projectDir = new File('kafka/log4j-appender')

@@ -1,0 +1,37 @@
+group 'com.nucypher.kafka.granular'
+
+apply plugin: 'com.github.hauner.jarTest'
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+apply plugin: 'maven'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+jar {
+    archiveName = "nucypher-kafka-granular-${version}.${extension}"
+}
+
+dependencies {
+    compile project(':commons')
+    compile project(':clients')
+
+    compile "org.apache.logging.log4j:log4j-slf4j-impl:$log4jVersion"
+    compile "org.apache.logging.log4j:log4j-1.2-api:$log4jVersion"
+
+    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
+    compile "com.jayway.jsonpath:json-path:$jsonPathVersion"
+    compile "org.apache.avro:avro:$avroVersion"
+    compile("io.confluent:kafka-avro-serializer:$confluentVersion") {
+        exclude group: "org.slf4j", module: 'slf4j-api'
+        exclude group: "org.slf4j", module: 'slf4j-log4j12'
+        exclude group: "org.apache.avro", module: 'avro'
+        exclude group: "com.fasterxml.jackson.core", module: 'jackson-databind'
+    }
+
+    testCompile project(path: ':commons', configuration: 'testArchives')
+    testCompile "junit:junit:$junitVersion"
+    testCompile "org.spockframework:spock-core:$spockVersion"
+    testCompile "cglib:cglib-nodep:$cglibVersion"
+}

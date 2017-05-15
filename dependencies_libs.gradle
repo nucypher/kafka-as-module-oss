@@ -1,0 +1,8 @@
+apply plugin: 'java'
+
+task copyDependenciesToLib(type: Copy) {
+    into "$buildDir/libs/lib"
+    from configurations.runtime
+}
+
+build.dependsOn copyDependenciesToLib

@@ -1,0 +1,6 @@
+[submodule "kafka"]
+	path = kafka
+	url = https://github.com/nucypher/kafka-oss
+[submodule "crypto"]
+	path = crypto
+	url = https://github.com/nucypher/nucypher-crypto-oss

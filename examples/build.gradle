@@ -1,0 +1,29 @@
+apply plugin: 'java'
+apply plugin: "com.github.johnrengelman.shadow"
+
+group 'com.nucypher.kafka'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+
+    compile project(':clients')
+    compile project(':proxy')
+    compile project(':granular')
+    compile project(path: ':commons', configuration: 'testArchives')
+
+    compile "org.hdrhistogram:HdrHistogram:2.1.9"
+    compile("io.confluent:kafka-schema-registry:$confluentVersion") {
+        exclude group: "org.slf4j", module: 'slf4j-api'
+        exclude group: "org.slf4j", module: 'slf4j-log4j12'
+        exclude group: "org.apache.avro", module: 'avro'
+        exclude group: "com.fasterxml.jackson.core", module: 'jackson-databind'
+    }
+    compile "org.openjdk.jmh:jmh-core:$jmhVersion"
+    compile "org.openjdk.jmh:jmh-generator-annprocess:$jmhVersion"
+}
+
+shadowJar {
+    baseName = 'nucypher-kafka-examples'
+}
