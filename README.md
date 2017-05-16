@@ -8,7 +8,7 @@ After git clone run: initialize_project.sh
 ## External submodules
 
 ### nucypher-crypto-oss
-### kafka-oss
+### kafka-oss (0.10.1-encrypted branch)
 
 
 ## Java features for AES 256 bit
@@ -42,7 +42,6 @@ directory *patch* will be created with the following structure:
     nucypher-kafka-admin-1.0-SNAPSHOT.jar
     nucypher-kafka-clients-1.0-SNAPSHOT.jar
     nucypher-kafka-commons-1.0-SNAPSHOT.jar
-    nucypher-kafka-granular-1.0-SNAPSHOT.jar
 
  libs/nucypher/lib - 3rd party jar's for NuCypher core jar's
  ```

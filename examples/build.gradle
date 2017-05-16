@@ -10,7 +10,6 @@ dependencies {
 
     compile project(':clients')
     compile project(':proxy')
-    compile project(':granular')
     compile project(path: ':commons', configuration: 'testArchives')
 
     compile "org.hdrhistogram:HdrHistogram:2.1.9"

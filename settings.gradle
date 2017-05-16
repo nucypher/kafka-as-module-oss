@@ -13,9 +13,6 @@ include 'proxy'
 include 'crypto'
 project(':crypto').projectDir= new File('crypto')
 
-include 'granular'
-project(':granular').projectDir= new File('granular')
-
 // https://github.com/nucypher/kafka.git
 include 'kafka'
 project(':kafka').projectDir = new File('kafka')

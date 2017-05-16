@@ -14,7 +14,6 @@ applicationName = 'nucypher-kafka-admin'
 
 dependencies {
     compile project(':commons')
-    compile project(':granular')
 
     compile "org.apache.logging.log4j:log4j-slf4j-impl:$log4jVersion"
     compile "org.apache.logging.log4j:log4j-1.2-api:$log4jVersion"
@@ -25,7 +24,7 @@ dependencies {
         exclude group: "log4j", module: 'log4j'
     }
 
-    testCompile project(path: ':granular', configuration: 'testArchives')
+    testCompile project(path: ':commons', configuration: 'testArchives')
     testCompile "junit:junit:$junitVersion"
     testCompile "org.apache.curator:curator-test:$curatorVersion"
     testCompile "org.apache.curator:curator-framework:$curatorVersion"

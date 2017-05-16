@@ -20,12 +20,28 @@ dependencies {
 
 	compile "org.bouncycastle:bcpkix-jdk15on:$bouncyCastleVersion"
 
+    compile("com.101tec:zkclient:$zkclientVersion") {
+        exclude group: "org.slf4j", module: 'slf4j-api'
+        exclude group: "org.slf4j", module: 'slf4j-log4j12'
+        exclude group: "log4j", module: 'log4j'
+    }
+
+    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
+    compile "com.jayway.jsonpath:json-path:$jsonPathVersion"
     compile "org.apache.avro:avro:$avroVersion"
+    compile("io.confluent:kafka-avro-serializer:$confluentVersion") {
+        exclude group: "org.slf4j", module: 'slf4j-api'
+        exclude group: "org.slf4j", module: 'slf4j-log4j12'
+        exclude group: "org.apache.avro", module: 'avro'
+        exclude group: "com.fasterxml.jackson.core", module: 'jackson-databind'
+    }
+
     compile "org.projectlombok:lombok:$lombokVersion"
     compile "com.google.guava:guava:$guavaVersion"
 
     testCompile "junit:junit:$junitVersion"
-
+    testCompile "org.apache.curator:curator-test:$curatorVersion"
+    testCompile "org.apache.curator:curator-framework:$curatorVersion"
     testCompile "org.spockframework:spock-core:$spockVersion"
     testCompile "cglib:cglib-nodep:$cglibVersion"
 }
