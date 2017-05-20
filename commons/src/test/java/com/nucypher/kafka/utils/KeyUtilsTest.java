@@ -2,8 +2,6 @@ package com.nucypher.kafka.utils;
 
 import com.nucypher.crypto.bbs98.WrapperBBS98;
 import com.nucypher.crypto.elgamal.WrapperElGamalPRE;
-import com.nucypher.kafka.Constants;
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.TestConstants;
 import com.nucypher.kafka.errors.CommonException;
 import org.bouncycastle.jce.ECNamedCurveTable;
@@ -11,7 +9,6 @@ import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.hamcrest.core.StringContains;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -24,7 +21,6 @@ import java.util.Random;
 import static com.nucypher.kafka.utils.KeyType.DEFAULT;
 import static com.nucypher.kafka.utils.KeyType.PRIVATE;
 import static com.nucypher.kafka.utils.KeyType.PRIVATE_AND_PUBLIC;
-import static com.nucypher.kafka.utils.KeyType.PUBLIC;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -43,14 +39,6 @@ public final class KeyUtilsTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     private static Random random = new Random();
-
-    /**
-     * Provider initialization
-     */
-    @BeforeClass
-    public static void initialize() {
-        DefaultProvider.initializeProvider();
-    }
 
     /**
      * Test reading PEM file with EC private key
@@ -270,101 +258,6 @@ public final class KeyUtilsTest {
         }
         assertEquals(ecSpec, reKey.getECParameterSpec());
         return ecSpec;
-    }
-
-//    /**
-//     * Test generating complex re-encryption key
-//     */
-//    @Test
-//    //TODO move to KeyUtilsAlgorithmTest when ready
-//    public void testGenerateComplexReKey() throws Exception {
-//        String privateFrom = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
-//        String privateTo = getClass().getResource("/private-key-prime256v1-2.pem").getPath();
-//        String publicTo = getClass().getResource("/public-key-prime256v1-2.pem").getPath();
-//        testGenerateComplexReKey(algorithm, privateFrom, publicTo, privateTo, "prime256v1");
-//
-//        privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
-//        privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
-//        publicTo = getClass().getResource("/public-key-secp521r1-2.pem").getPath();
-//        testGenerateComplexReKey(algorithm, privateFrom, publicTo, privateTo, "secp521r1");
-//    }
-
-//    private void testGenerateComplexReKey(
-//            EncryptionAlgorithm algorithm,
-//            String from,
-//            String publicTo,
-//            String privateTo,
-//            String curve)
-//            throws Exception {
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, null, DEFAULT);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, curve, DEFAULT);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, privateTo, privateTo, null, PUBLIC);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, null, PRIVATE_AND_PUBLIC);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, null, PUBLIC);
-//    }
-
-
-//    /**
-//     * Test complex re-encrypting EDEK
-//     */
-//    @Test
-//    //TODO move to KeyUtilsAlgorithmTest when ready
-//    public void testComplexReEncryptEDEK() throws Exception {
-//        String privateFrom = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
-//        String privateTo = getClass().getResource("/private-key-prime256v1-2.pem").getPath();
-//        testReEncryptEDEK(algorithm, privateFrom, privateTo, true);
-//
-//        privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
-//        privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
-//        testReEncryptEDEK(algorithm, privateFrom, privateTo, true);
-//    }
-
-    /**
-     * Test re-encrypting EDEK
-     *
-     * @param algorithm encryption algorithm
-     * @param from      key from
-     * @param to        key to
-     * @param isComplex is complex re-encryption
-     */
-    public static void testReEncryptEDEK(EncryptionAlgorithm algorithm,
-                                         String from,
-                                         String to,
-                                         boolean isComplex) throws Exception {
-        WrapperReEncryptionKey reKey = KeyUtils.generateReEncryptionKey(
-                algorithm, from, to, !isComplex ? PRIVATE : PUBLIC, null);
-        KeyPair keyPairFrom = KeyUtils.getECKeyPairFromPEM(from);
-        KeyPair keyPairTo = KeyUtils.getECKeyPairFromPEM(to);
-        ECParameterSpec ecSpec = KeyUtilsTest.getEcParameterSpec(
-                null, reKey, keyPairFrom);
-
-        byte[] byteContent;
-        switch (algorithm) {
-            case BBS98:
-                byteContent = new byte[WrapperBBS98.getMessageLength(ecSpec)];
-                break;
-            case ELGAMAL:
-                byteContent = new byte[WrapperElGamalPRE.getMessageLength(ecSpec)];
-                break;
-            default:
-                throw new CommonException();
-        }
-
-        random.nextBytes(byteContent);
-        byte[] encrypted = KeyUtils.encryptDEK(
-                algorithm,
-                keyPairFrom.getPublic(),
-                AESKeyGenerators.create(byteContent, Constants.SYMMETRIC_ALGORITHM),
-                new SecureRandom());
-        byte[] reEncrypted = KeyUtils.reEncryptEDEK(encrypted, reKey);
-        byte[] decrypted = KeyUtils.decryptEDEK(algorithm, keyPairTo.getPrivate(),
-                reEncrypted, isComplex);
-        assertArrayEquals(byteContent, decrypted);
     }
 
 }

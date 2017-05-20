@@ -1,9 +1,9 @@
 package com.nucypher.kafka.zk;
 
 import com.nucypher.kafka.TestConstants;
+import com.nucypher.kafka.clients.granular.StructuredDataAccessorStub;
 import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
-import com.nucypher.kafka.clients.granular.StructuredDataAccessorStub;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 

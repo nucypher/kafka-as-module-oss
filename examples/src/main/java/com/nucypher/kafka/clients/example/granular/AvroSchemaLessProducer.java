@@ -1,7 +1,6 @@
 package com.nucypher.kafka.clients.example.granular;
 
 import com.google.common.io.Resources;
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.TestConstants;
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
@@ -40,7 +39,6 @@ public class AvroSchemaLessProducer {
                 .name("k").type().intType().noDefault()
                 .endRecord();
 
-        DefaultProvider.initializeProvider();
         JaasUtils.initializeConfiguration();
 
         // set up the producer
@@ -64,7 +62,7 @@ public class AvroSchemaLessProducer {
                     DataFormat.AVRO_SCHEMA_LESS
             );
             Map<String, Object> configs = new HashMap<>();
-            for (final String name: properties.stringPropertyNames()) {
+            for (final String name : properties.stringPropertyNames()) {
                 configs.put(name, properties.getProperty(name));
             }
             serializer.configure(configs, false);

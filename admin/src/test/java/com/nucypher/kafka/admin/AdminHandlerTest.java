@@ -1,6 +1,5 @@
 package com.nucypher.kafka.admin;
 
-import com.nucypher.kafka.Pair;
 import com.nucypher.kafka.TestConstants;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.JsonDataAccessor;
@@ -67,6 +66,8 @@ import static org.powermock.api.mockito.PowerMockito.verifyStatic;
 @PowerMockIgnore("javax.management.*")
 public class AdminHandlerTest {
 
+    private static final EncryptionAlgorithm ALGORITHM = TestConstants.ENCRYPTION_ALGORITHM;
+
     @Mock
     private AdminZooKeeperHandler zooKeeperHandler;
     @Mock
@@ -94,15 +95,14 @@ public class AdminHandlerTest {
     private String channel = "channel";
     private String curve = "curve";
     private Set<String> fields = new HashSet<>();
-    private EncryptionAlgorithm algorithm = TestConstants.ENCRYPTION_ALGORITHM;
 
     {
         fields.add("a.c");
         fields.add("b");
     }
 
-    private WrapperReEncryptionKey key = new WrapperReEncryptionKey(algorithm, BigInteger.ONE,
-            ECNamedCurveTable.getParameterSpec("secp521r1"));
+    private WrapperReEncryptionKey key = new WrapperReEncryptionKey(ALGORITHM,
+            BigInteger.ONE, ECNamedCurveTable.getParameterSpec("secp521r1"));
 
     /**
      * Initializing
@@ -129,7 +129,7 @@ public class AdminHandlerTest {
     public void testAddConsumerReKey() throws Exception {
         String curve = "curve";
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 curve,
@@ -144,7 +144,7 @@ public class AdminHandlerTest {
                 null);
 
         verifyStatic(times(1));
-        KeyUtils.generateReEncryptionKey(eq(algorithm), stringCaptor.capture(),
+        KeyUtils.generateReEncryptionKey(eq(ALGORITHM), stringCaptor.capture(),
                 stringCaptor.capture(), keyTypeCaptor.capture(), stringCaptor.capture());
         List<String> values = stringCaptor.getAllValues();
         assertEquals(masterKey, values.get(0));
@@ -164,7 +164,7 @@ public class AdminHandlerTest {
     @Test
     public void testAddConsumerReKeyWithFields() throws Exception {
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 curve,
@@ -185,7 +185,7 @@ public class AdminHandlerTest {
         verifyStatic(times(1));
         KeyUtils.getECKeyPairFromPEM(eq(clientKey));
         verifyStatic(times(2));
-        KeyUtils.generateReEncryptionKey(eq(algorithm),
+        KeyUtils.generateReEncryptionKey(eq(ALGORITHM),
                 keyPairCaptor.capture(), keyPairCaptor.capture(), eq(KeyType.DEFAULT), eq(curve));
         List<KeyPair> values = keyPairCaptor.getAllValues();
         assertEquals(privateKey, values.get(0).getPrivate());
@@ -211,7 +211,7 @@ public class AdminHandlerTest {
         ZonedDateTime dateTime = ZonedDateTime.now();
 
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -226,7 +226,7 @@ public class AdminHandlerTest {
                 null);
 
         verifyStatic(times(1));
-        KeyUtils.generateReEncryptionKey(eq(algorithm), stringCaptor.capture(),
+        KeyUtils.generateReEncryptionKey(eq(ALGORITHM), stringCaptor.capture(),
                 stringCaptor.capture(), keyTypeCaptor.capture(), stringCaptor.capture());
         List<String> values = stringCaptor.getAllValues();
         assertEquals(clientKey, values.get(0));
@@ -249,7 +249,7 @@ public class AdminHandlerTest {
         ZonedDateTime dateTime = ZonedDateTime.now();
 
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -264,7 +264,7 @@ public class AdminHandlerTest {
                 null);
 
         verifyStatic(times(2));
-        KeyUtils.generateReEncryptionKey(eq(algorithm), keyPairCaptor.capture(),
+        KeyUtils.generateReEncryptionKey(eq(ALGORITHM), keyPairCaptor.capture(),
                 keyPairCaptor.capture(), eq(KeyType.PRIVATE), (String) isNull());
         List<KeyPair> values = keyPairCaptor.getAllValues();
         assertEquals(inputPrivateKey, values.get(0).getPrivate());
@@ -291,7 +291,7 @@ public class AdminHandlerTest {
     @Test
     public void testAddReKeyWithFieldsAndFormat() throws Exception {
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -326,7 +326,7 @@ public class AdminHandlerTest {
         long minDate = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(days);
 
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -448,7 +448,7 @@ public class AdminHandlerTest {
 
     private void testAddReKeyWithKeyTypes(KeyType keyType) throws Exception {
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -479,7 +479,7 @@ public class AdminHandlerTest {
 
     private void testAddReKeyWithKeyTypesAndFields(KeyType keyType) throws Exception {
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -507,7 +507,7 @@ public class AdminHandlerTest {
         expectedException.expectMessage(
                 StringContains.containsString("Only available"));
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -531,7 +531,7 @@ public class AdminHandlerTest {
         expectedException.expectMessage(
                 StringContains.containsString("Only available"));
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 masterKey,
                 clientKey,
                 null,
@@ -554,7 +554,7 @@ public class AdminHandlerTest {
         WrapperReEncryptionKey emptyKey = new WrapperReEncryptionKey();
 
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 null,
                 null,
                 null,
@@ -571,7 +571,7 @@ public class AdminHandlerTest {
                 new KeyHolder(channel, clientName, ClientType.CONSUMER, emptyKey));
 
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 null,
                 null,
                 null,
@@ -588,7 +588,7 @@ public class AdminHandlerTest {
                 new KeyHolder(channel, clientName, ClientType.PRODUCER, emptyKey));
 
         handler.generateAndSaveReEncryptionKey(
-                algorithm,
+                ALGORITHM,
                 null,
                 null,
                 null,
@@ -616,20 +616,20 @@ public class AdminHandlerTest {
     public void testGenerateKeys() throws Exception {
         KeyPair keyPair = new KeyPair(publicKey, privateKey);
         when(KeyUtils.generateECKeyPair(any(), anyString()))
-                .thenReturn(new Pair<>(keyPair, null));
+                .thenReturn(new KeyUtils.KeyPairHolder(keyPair, null));
 
         String privateKeyPath = "privateKey";
         String publicKeyPath = "publicKey";
 
-        handler.generateKeyPair(algorithm, curve, privateKeyPath, null);
+        handler.generateKeyPair(ALGORITHM, curve, privateKeyPath, null);
         verifyStatic(times(1));
-        KeyUtils.generateECKeyPair(eq(algorithm), eq(curve));
+        KeyUtils.generateECKeyPair(eq(ALGORITHM), eq(curve));
         verifyStatic(times(1));
         KeyUtils.writeKeyPairToPEM(eq(privateKeyPath), eq(keyPair), eq(KeyType.PRIVATE));
 
-        handler.generateKeyPair(algorithm, curve, privateKeyPath, publicKeyPath);
+        handler.generateKeyPair(ALGORITHM, curve, privateKeyPath, publicKeyPath);
         verifyStatic(times(2));
-        KeyUtils.generateECKeyPair(eq(algorithm), eq(curve));
+        KeyUtils.generateECKeyPair(eq(ALGORITHM), eq(curve));
         verifyStatic(times(2));
         KeyUtils.writeKeyPairToPEM(eq(privateKeyPath), eq(keyPair), eq(KeyType.PRIVATE));
         verifyStatic(times(1));

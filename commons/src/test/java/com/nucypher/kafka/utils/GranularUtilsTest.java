@@ -1,9 +1,7 @@
 package com.nucypher.kafka.utils;
 
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.errors.CommonException;
 import org.hamcrest.core.StringContains;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -21,14 +19,6 @@ public class GranularUtilsTest {
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    /**
-     * Provider initialization
-     */
-    @BeforeClass
-    public static void initialize() {
-        DefaultProvider.initializeProvider();
-    }
 
     /**
      * Test generating private keys from messages

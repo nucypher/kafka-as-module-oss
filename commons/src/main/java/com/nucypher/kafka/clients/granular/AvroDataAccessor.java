@@ -1,10 +1,8 @@
 package com.nucypher.kafka.clients.granular;
 
-import com.nucypher.kafka.Pair;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.AvroUtils;
 import com.nucypher.kafka.utils.GranularUtils;
-import lombok.AllArgsConstructor;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.DataFileWriter;
@@ -26,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -35,7 +34,8 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
 
     private static final String ENCRYPTED_PROPERTY = "encrypted";
 
-    private Map<Pair<Schema, Set<String>>, Schema> schemasCache = new HashMap<>(); //TODO change to external library
+    //TODO change to external library
+    protected Map<SchemaCacheKey, Schema> schemasCache = new HashMap<>();
 
     private GenericRecord currentRecord;
     private DataFileReader<GenericRecord> dataReader;
@@ -46,6 +46,30 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
     private Map<String, String> inputEncrypted;
     private Map<String, String> outputEncrypted;
     private Map<String, FieldObject> fieldsCache;
+
+    private static class SchemaCacheKey {
+        private Schema schema;
+        private Set<String> fields;
+
+        public SchemaCacheKey(Schema schema, Set<String> fields) {
+            this.schema = schema;
+            this.fields = fields;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SchemaCacheKey that = (SchemaCacheKey) o;
+            return Objects.equals(schema, that.schema) &&
+                    Objects.equals(fields, that.fields);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(schema, fields);
+        }
+    }
 
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
@@ -190,7 +214,7 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
         dataWriter = new DataFileWriter<>(writer);
         try {
             Schema schema;
-            Pair<Schema, Set<String>> key = new Pair<>(
+            SchemaCacheKey key = new SchemaCacheKey(
                     mutableSchema.getInitialSchema(), outputEncrypted.keySet());
             if (schemasCache.containsKey(key)) {
                 schema = schemasCache.get(key);
@@ -293,13 +317,24 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
     }
 
     @SuppressWarnings("unchecked")
-    @AllArgsConstructor
     private static class FieldObject {
         private Object parent;
         private Object childObject;
         private Integer index;
         private String fieldName;
         private MutableSchema mutableSchema;
+
+        public FieldObject(Object parent,
+                           Object childObject,
+                           Integer index,
+                           String fieldName,
+                           MutableSchema mutableSchema) {
+            this.parent = parent;
+            this.childObject = childObject;
+            this.index = index;
+            this.fieldName = fieldName;
+            this.mutableSchema = mutableSchema;
+        }
 
         public Object getValue() {
             return childObject;

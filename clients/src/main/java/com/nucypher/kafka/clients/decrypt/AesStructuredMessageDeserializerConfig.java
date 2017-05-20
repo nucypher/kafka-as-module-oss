@@ -1,5 +1,6 @@
 package com.nucypher.kafka.clients.decrypt;
 
+import com.nucypher.kafka.clients.StructuredMessageSerDeConfig;
 import org.apache.kafka.common.config.ConfigDef;
 
 import java.util.Map;
@@ -7,16 +8,16 @@ import java.util.Map;
 /**
  * Configuration for {@link AesStructuredMessageDeserializer}
  */
-public class AesStructuredMessageDeserializerConfig extends StructuredMessageDeserializerConfig {
+public class AesStructuredMessageDeserializerConfig extends AesMessageDeserializerConfig {
 
-    public static final String PRIVATE_KEY_CONFIG = "encryption.private.key";
-    public static final String PRIVATE_KEY_DOC = "Path to the EC private key";
+    public static final String GRANULAR_DATA_ACCESSOR_CONFIG =
+            StructuredMessageSerDeConfig.GRANULAR_DATA_ACCESSOR_CONFIG;
 
-    private static ConfigDef CONFIG;
+    private static final ConfigDef CONFIG;
 
     static {
-        CONFIG = baseConfigDef().define(PRIVATE_KEY_CONFIG,
-                ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, PRIVATE_KEY_DOC);
+        CONFIG = baseConfigDef();
+        StructuredMessageSerDeConfig.addGranularConfigDef(CONFIG);
     }
 
     public AesStructuredMessageDeserializerConfig(Map<?, ?> props) {

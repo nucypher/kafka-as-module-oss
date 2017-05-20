@@ -1,8 +1,7 @@
 package com.nucypher.kafka.clients.example.general;
 
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.TestConstants;
-import com.nucypher.kafka.clients.encrypt.AesMessageEncryptorSerializer;
+import com.nucypher.kafka.clients.encrypt.AesMessageSerializer;
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
 import com.nucypher.kafka.clients.granular.DataFormat;
@@ -18,8 +17,9 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import java.io.IOException;
 import java.security.PublicKey;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * Producer for sending only one string message
@@ -52,13 +52,12 @@ public class StringProducer {
         String topic = args[1];
         String message = args[2];
         String keyPath = args.length > 3 ? args[3] : null;
-        List<String> fields = null;
+        Set<String> fields = null;
         if (args.length > 4) {
-            fields = Arrays.asList(Arrays.copyOfRange(args, 4, args.length));
+            fields = new HashSet<>(Arrays.asList(Arrays.copyOfRange(args, 4, args.length)));
         }
 
         String key = "key";
-        DefaultProvider.initializeProvider();
         try (KafkaProducer<String, String> producer = getProducer(type, keyPath, fields)) {
             ProducerRecord<String, String> producerRecord =
                     new ProducerRecord<>(topic, key, message);
@@ -68,7 +67,7 @@ public class StringProducer {
     }
 
     private static KafkaProducer<String, String> getProducer(
-            String type, String keyPath, List<String> fields) throws IOException {
+            String type, String keyPath, Set<String> fields) throws IOException {
         PublicKey publicKey;
         switch (type.toLowerCase()) {
             case "non":
@@ -82,7 +81,7 @@ public class StringProducer {
                 return new KafkaProducer<>(
                         getProperties(),
                         new StringSerializer(),
-                        new AesMessageEncryptorSerializer<>(
+                        new AesMessageSerializer<>(
                                 new StringSerializer(),
                                 TestConstants.ENCRYPTION_ALGORITHM,
                                 publicKey
@@ -95,10 +94,10 @@ public class StringProducer {
                         new StringSerializer(),
                         new AesStructuredMessageSerializer<>(
                                 new StringSerializer(),
-                                fields,
                                 TestConstants.ENCRYPTION_ALGORITHM,
                                 publicKey,
-                                DataFormat.JSON
+                                DataFormat.JSON,
+                                fields
                         )
                 );
             default:

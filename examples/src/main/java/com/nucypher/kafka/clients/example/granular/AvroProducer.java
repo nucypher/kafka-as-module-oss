@@ -1,7 +1,6 @@
 package com.nucypher.kafka.clients.example.granular;
 
 import com.google.common.io.Resources;
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.TestConstants;
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
@@ -40,10 +39,8 @@ public class AvroProducer {
                 .name("k").type().intType().noDefault()
                 .endRecord();
 
-        DefaultProvider.initializeProvider();
         JaasUtils.initializeConfiguration();
 
-        // set up the producer
         KafkaProducer<String, byte[]> producer;
         try (InputStream props = Resources.getResource("producer.properties").openStream()) {
             Properties properties = new Properties();
@@ -51,7 +48,6 @@ public class AvroProducer {
             properties.put("security.protocol", SecurityProtocol.SASL_PLAINTEXT.toString());
             properties.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
 
-            // load PEM file from resources
             File file = new File(AvroProducer.class.getClassLoader()
                     .getResource(TestConstants.PEM).getFile());
             PublicKey publicKey = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPublic();

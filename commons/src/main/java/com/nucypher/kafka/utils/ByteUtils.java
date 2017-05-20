@@ -15,9 +15,6 @@ public class ByteUtils {
 
     private static final BaseEncoding HEX = BaseEncoding.base16();
 
-    public static final int BYTES_IN_LONG = 8;
-    public static final int BYTES_IN_INT = 4;
-
     /**
      * Invert byte
      *
@@ -89,19 +86,4 @@ public class ByteUtils {
         return (T) AvroUtils.deserialize(schema, bytes);
     }
 
-    public static byte[] intToByteArray(int value) {
-        return Ints.toByteArray(value);
-    }
-
-    public static int byteArrayToInt(byte[] bytes) {
-        return Ints.fromByteArray(bytes);
-    }
-
-    public static byte[] longToByteArray(long value) {
-        return Longs.toByteArray(value);
-    }
-
-    public static long byteArrayToLong(byte[] bytes) {
-        return Longs.fromByteArray(bytes);
-    }
 }

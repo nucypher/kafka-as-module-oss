@@ -1,31 +1,20 @@
 package com.nucypher.kafka.clients;
 
 import com.nucypher.kafka.utils.AvroUtils;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.avro.util.Utf8;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Header
+ * Message header
  */
-@Setter
-@Getter
-@Builder
-@ToString
-@AllArgsConstructor
 public class Header extends SpecificRecordBase implements SpecificRecord, Serializable {
 
     private static final Schema schema = new Schema.Parser().parse(
@@ -33,15 +22,37 @@ public class Header extends SpecificRecordBase implements SpecificRecord, Serial
                     "\"name\":\"Header\"," +
                     "\"namespace\":\"com.nucypher.kafka.clients\"," +
                     "\"fields\":[{\"name\":\"topic\",\"type\":[\"string\", \"null\"]}," +
-                    "{\"name\":\"description\",\"type\":[\"string\", \"null\"]}," +
                     "{\"name\":\"map\",\"type\":[{\"type\":\"map\",\"values\":\"bytes\"}, \"null\"]}]}");
 
-    private String topic;               // some fields has an explicit declaration some other hide inside map
-    private String description;
-    private Map<String, byte[]> map;    // extra parameters for header - like IV, EDEK & etc
+    // some fields has an explicit declaration some other hide inside map
+    private String topic;
+    // extra parameters for header - like IV, EDEK & etc
+    private Map<String, byte[]> map;
 
     public Header() {
         this.map = new HashMap<>();
+    }
+
+    /**
+     * @param topic topic
+     */
+    public Header(String topic) {
+        this();
+        this.topic = topic;
+    }
+
+    /**
+     * @return topic
+     */
+    public String getTopic() {
+        return topic;
+    }
+
+    /**
+     * @return extra parameters
+     */
+    public Map<String, byte[]> getMap() {
+        return map;
     }
 
     @Override
@@ -58,11 +69,6 @@ public class Header extends SpecificRecordBase implements SpecificRecord, Serial
                 }
                 return new Utf8(topic);
             case 1:
-                if (description == null) {
-                    return null;
-                }
-                return new Utf8(description);
-            case 2:
                 if (map == null) {
                     return null;
                 }
@@ -91,13 +97,6 @@ public class Header extends SpecificRecordBase implements SpecificRecord, Serial
                 break;
             case 1:
                 if (value == null) {
-                    description = null;
-                } else {
-                    description = value.toString();
-                }
-                break;
-            case 2:
-                if (value == null) {
                     map = null;
                 } else {
                     Map<Object, ByteBuffer> mapValue = (Map<Object, ByteBuffer>) value;
@@ -112,33 +111,14 @@ public class Header extends SpecificRecordBase implements SpecificRecord, Serial
         }
     }
 
-    public Header(String topic) {
-        this();
-        this.topic = topic;
-    }
-
     /**
-     * Create Header from serialized byte array
+     * Add extra parameters to header
      *
-     * @param serializedHeader -
-     */
-    public Header(byte[] serializedHeader) throws IOException, ClassNotFoundException {
-        // TODO extra checks
-        Header header = deserialize(serializedHeader);
-        this.topic = header.getTopic();
-        this.description = header.getDescription();
-        this.map = header.getMap();
-    }
-
-    /**
-     * add extra parameters to header
-     *
-     * @param key   -
-     * @param value -
-     * @return -
+     * @param key   key
+     * @param value value
+     * @return this {@link Header} instance
      */
     public Header add(String key, byte[] value) {
-        // TODO extra checks for variables
         if (map == null) {
             this.map = new HashMap<>();
         }
@@ -149,10 +129,9 @@ public class Header extends SpecificRecordBase implements SpecificRecord, Serial
     /**
      * Serialize Header into byte array
      *
-     * @return - byte[]
-     * @throws IOException -
+     * @return byte array
      */
-    public byte[] serialize() throws IOException {
+    public byte[] serialize() {
         return AvroUtils.serialize(schema, this);
     }
 

@@ -1,13 +1,10 @@
 package com.nucypher.kafka.utils;
 
-import com.nucypher.kafka.DefaultProvider;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -35,8 +32,6 @@ public final class KeyUtilsAlgorithmTest {
 
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
 
     private Random random = new Random();
     private EncryptionAlgorithm algorithm;
@@ -58,14 +53,6 @@ public final class KeyUtilsAlgorithmTest {
                 {EncryptionAlgorithm.ELGAMAL}
         };
         return Arrays.asList(data);
-    }
-
-    /**
-     * Provider initialization
-     */
-    @BeforeClass
-    public static void initialize() {
-        DefaultProvider.initializeProvider();
     }
 
     /**
@@ -143,20 +130,6 @@ public final class KeyUtilsAlgorithmTest {
         assertEquals(ecSpec, wrapper.getECParameterSpec());
         assertArrayEquals(encryptedRandomKey, wrapper.getEncryptedRandomKey());
         assertEquals(Integer.valueOf(randomKeyLength), wrapper.getRandomKeyLength());
-    }
-
-    /**
-     * Test simple re-encrypting EDEK
-     */
-    @Test
-    public void testSimpleReEncryptEDEK() throws Exception {
-        String privateFrom = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
-        String privateTo = getClass().getResource("/private-key-prime256v1-2.pem").getPath();
-        KeyUtilsTest.testReEncryptEDEK(algorithm, privateFrom, privateTo, false);
-
-        privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
-        privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
-        KeyUtilsTest.testReEncryptEDEK(algorithm, privateFrom, privateTo, false);
     }
 
 }

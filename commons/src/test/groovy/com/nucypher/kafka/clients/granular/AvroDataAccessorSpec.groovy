@@ -1,6 +1,5 @@
 package com.nucypher.kafka.clients.granular
 
-import com.nucypher.kafka.Pair
 import com.nucypher.kafka.errors.CommonException
 import com.nucypher.kafka.utils.AvroUtils
 import com.nucypher.kafka.utils.ByteUtils
@@ -265,9 +264,9 @@ class AvroDataAccessorSpec extends Specification {
             dataAccessor.seekToNext()
         }
         byte[] bytes = dataAccessor.serialize()
-        Pair<Schema, List<GenericRecord>> pair = AvroTestUtils.deserialize(bytes)
-        parsedSchema = pair.getFirst()
-        records = pair.getLast()
+        AvroTestUtils.SchemaRecords schemaRecords = AvroTestUtils.deserialize(bytes)
+        parsedSchema = schemaRecords.schema
+        records = schemaRecords.genericRecords
 
         then: 'should be the same data'
         parsedSchema == inputSchema
@@ -522,9 +521,9 @@ class AvroDataAccessorSpec extends Specification {
                     ByteUtils.serialize(((GenericRecord) record.get("complex")).get("record")))
         }
         byte[] bytes = dataAccessor.serialize()
-        Pair<Schema, List<GenericRecord>> pair = AvroTestUtils.deserialize(bytes)
-        parsedSchema = pair.getFirst()
-        parsedRecords = pair.getLast()
+        AvroTestUtils.SchemaRecords schemaRecords = AvroTestUtils.deserialize(bytes)
+        parsedSchema = schemaRecords.schema
+        parsedRecords = schemaRecords.genericRecords
 
         then: 'should be right schema and records'
         parsedSchema == partiallyEncryptedSchema
@@ -549,9 +548,9 @@ class AvroDataAccessorSpec extends Specification {
         }
 
         bytes = dataAccessor.serialize()
-        pair = AvroTestUtils.deserialize(bytes)
-        parsedSchema = pair.getFirst()
-        parsedRecords = pair.getLast()
+        schemaRecords = AvroTestUtils.deserialize(bytes)
+        parsedSchema = schemaRecords.schema
+        parsedRecords = schemaRecords.genericRecords
 
         then: 'should be unencrypted data'
         parsedSchema == schema
@@ -598,9 +597,9 @@ class AvroDataAccessorSpec extends Specification {
         }
 
         byte[] bytes = dataAccessor.serialize()
-        Pair<Schema, List<GenericRecord>> pair = AvroTestUtils.deserialize(bytes)
-        parsedSchema = pair.getFirst()
-        parsedRecords = pair.getLast()
+        AvroTestUtils.SchemaRecords schemaRecords = AvroTestUtils.deserialize(bytes)
+        parsedSchema = schemaRecords.schema
+        parsedRecords = schemaRecords.genericRecords
 
         then: 'should be right schema and record'
         parsedSchema == partiallyEncryptedSchema
@@ -630,9 +629,9 @@ class AvroDataAccessorSpec extends Specification {
         }
 
         bytes = dataAccessor.serialize()
-        pair = AvroTestUtils.deserialize(bytes)
-        parsedSchema = pair.getFirst()
-        parsedRecords = pair.getLast()
+        schemaRecords = AvroTestUtils.deserialize(bytes)
+        parsedSchema = schemaRecords.schema
+        parsedRecords = schemaRecords.genericRecords
 
         then: 'should be encrypted data'
         parsedSchema == encryptedSchema
@@ -672,7 +671,7 @@ class AvroDataAccessorSpec extends Specification {
                 ByteUtils.serialize(((List<Object>) firstRecord.get("array")).get(0)))
 
         byte[] bytes = dataAccessor.serialize()
-        Schema firstSchema = AvroTestUtils.deserialize(bytes).getFirst()
+        Schema firstSchema = AvroTestUtils.deserialize(bytes).schema
 
         data = AvroTestUtils.serialize(schema, secondRecord)
         dataAccessor.deserialize(topic, data)
@@ -684,7 +683,7 @@ class AvroDataAccessorSpec extends Specification {
                 ByteUtils.serialize(((List<Object>) secondRecord.get("array")).get(0)))
 
         bytes = dataAccessor.serialize()
-        Schema secondSchema = AvroTestUtils.deserialize(bytes).getFirst()
+        Schema secondSchema = AvroTestUtils.deserialize(bytes).schema
 
         then: 'should be identical schemas'
         firstSchema == secondSchema

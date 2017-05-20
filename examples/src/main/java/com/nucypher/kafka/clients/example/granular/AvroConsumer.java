@@ -1,7 +1,6 @@
 package com.nucypher.kafka.clients.example.granular;
 
 import com.google.common.io.Resources;
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.TestConstants;
 import com.nucypher.kafka.clients.decrypt.AesStructuredMessageDeserializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
@@ -35,11 +34,9 @@ import java.util.Random;
 public class AvroConsumer {
 
     public static void main(String[] args) throws Exception {
-        DefaultProvider.initializeProvider();
         JaasUtils.initializeConfiguration();
 
         Histogram stats = new Histogram(1, 10000000, 2);
-        // and the consumer
         KafkaConsumer<String, byte[]> consumer;
         try (InputStream props = Resources.getResource("consumer.properties").openStream()) {
             Properties properties = new Properties();
@@ -53,13 +50,15 @@ public class AvroConsumer {
             // load PEM file from resources
             File file = new File(AvroConsumer.class.getClassLoader()
                     .getResource(TestConstants.PEM).getFile());
-            final PrivateKey privateKey = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPrivate();
+            final PrivateKey privateKey =
+                    KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPrivate();
 
             consumer = new KafkaConsumer<>(
                     properties,
                     new StringDeserializer(),
                     new AesStructuredMessageDeserializer<>(
                             new ByteArrayDeserializer(),
+                            TestConstants.ENCRYPTION_ALGORITHM,
                             privateKey,
                             DataFormat.AVRO
                     )
@@ -69,10 +68,7 @@ public class AvroConsumer {
 
         consumer.subscribe(Collections.singletonList("granular-avro"));
         int timeouts = 0;
-        //noinspection InfiniteLoopStatement
         while (true) {
-//            Thread.sleep(200);
-            // read records with a short timeout. If we time out, we don't really care.
             ConsumerRecords<String, byte[]> records = consumer.poll(200);
             System.out.println("records.count():" + records.count());
             if (records.count() == 0) {
@@ -87,8 +83,6 @@ public class AvroConsumer {
                 DataFileReader<GenericRecord> dataFileReader = new DataFileReader<>(seekableInput, datumReader);
 
                 GenericRecord genericRecord = dataFileReader.next();
-//                System.out.println(genericRecord);
-                // the send time is encoded inside the message
                 long latency = (long) ((System.nanoTime() * 1e-9 - (double) genericRecord.get("t")) * 1000);
                 stats.recordValue(latency);
             }

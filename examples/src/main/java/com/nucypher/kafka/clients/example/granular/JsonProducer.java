@@ -1,7 +1,6 @@
 package com.nucypher.kafka.clients.example.granular;
 
 import com.google.common.io.Resources;
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.TestConstants;
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
@@ -25,7 +24,6 @@ import java.util.Properties;
 public class JsonProducer {
 
     public static void main(String[] args) throws Exception {
-        DefaultProvider.initializeProvider();
         JaasUtils.initializeConfiguration();
 
         // set up the producer
@@ -39,7 +37,8 @@ public class JsonProducer {
             // load PEM file from resources
             File file = new File(JsonProducer.class.getClassLoader()
                     .getResource(TestConstants.PEM).getFile());
-            PublicKey publicKey = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPublic();
+            PublicKey publicKey =
+                    KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPublic();
 
             producer = new KafkaProducer<>(
                     properties,

@@ -1,6 +1,5 @@
 package com.nucypher.kafka.clients.granular;
 
-import com.nucypher.kafka.Pair;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.AvroUtils;
 import org.apache.avro.Schema;
@@ -335,7 +334,7 @@ public class AvroTestUtils {
      * @param bytes input bytes
      * @return pair of schema and records
      */
-    public static Pair<Schema, List<GenericRecord>> deserialize(byte[] bytes) {
+    public static SchemaRecords deserialize(byte[] bytes) {
         try {
             SeekableInput seekableInput = new SeekableByteArrayInput(bytes);
             DatumReader<GenericRecord> datumReader = new GenericDatumReader<>();
@@ -346,9 +345,22 @@ public class AvroTestUtils {
             while (dataFileReader.hasNext()) {
                 records.add(dataFileReader.next());
             }
-            return new Pair<>(schema, records);
+            return new SchemaRecords(schema, records);
         } catch (IOException e) {
             throw new CommonException(e);
+        }
+    }
+
+    /**
+     * {@link Schema} and list of {@link GenericRecord}
+     */
+    public static class SchemaRecords {
+        public Schema schema;
+        public List<GenericRecord> genericRecords;
+
+        public SchemaRecords(Schema schema, List<GenericRecord> genericRecords) {
+            this.schema = schema;
+            this.genericRecords = genericRecords;
         }
     }
 
@@ -382,7 +394,7 @@ public class AvroTestUtils {
      * @param bytes  input bytes
      * @return pair of schema id and record
      */
-    public static Pair<Integer, GenericRecord> deserializeWithoutSchema(Schema schema, byte[] bytes) {
+    public static IdRecord deserializeWithoutSchema(Schema schema, byte[] bytes) {
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
         if (buffer.get() != MAGIC_BYTE) {
             throw new CommonException("Unknown magic byte!");
@@ -391,7 +403,20 @@ public class AvroTestUtils {
         byte[] data = new byte[buffer.limit() - buffer.position()];
         buffer.get(data);
         GenericRecord record = (GenericRecord) AvroUtils.deserialize(schema, data);
-        return new Pair<>(id, record);
+        return new IdRecord(id, record);
+    }
+
+    /**
+     * Id and {@link GenericRecord}
+     */
+    public static class IdRecord {
+        public Integer id;
+        public GenericRecord genericRecord;
+
+        public IdRecord(Integer id, GenericRecord genericRecord) {
+            this.id = id;
+            this.genericRecord = genericRecord;
+        }
     }
 
 }

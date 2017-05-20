@@ -10,7 +10,6 @@ jar {
 }
 
 dependencies {
-
     compile project(':crypto')
     compile project(':kafka:clients')
 
@@ -36,7 +35,6 @@ dependencies {
         exclude group: "com.fasterxml.jackson.core", module: 'jackson-databind'
     }
 
-    compile "org.projectlombok:lombok:$lombokVersion"
     compile "com.google.guava:guava:$guavaVersion"
 
     testCompile "junit:junit:$junitVersion"

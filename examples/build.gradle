@@ -1,5 +1,4 @@
 apply plugin: 'java'
-apply plugin: "com.github.johnrengelman.shadow"
 
 group 'com.nucypher.kafka'
 
@@ -23,6 +22,50 @@ dependencies {
     compile "org.openjdk.jmh:jmh-generator-annprocess:$jmhVersion"
 }
 
-shadowJar {
+jar {
     baseName = 'nucypher-kafka-examples'
 }
+
+copyDependenciesToLib {
+
+    into "$buildDir/libs/lib"
+    from configurations.runtime
+
+    doLast {
+        jar {
+
+            manifest {
+                attributes("Class-Path": configurations.runtime.collect { "lib/$it.name" }.join(' '))
+            }
+        }
+    }
+
+}
+
+jar.dependsOn copyDependenciesToLib
+
+def projectName = "${jar.baseName}-${version}"
+
+task zip(type: Zip) {
+    archivesBaseName = "${jar.baseName}"
+    from("$buildDir/libs") {
+        include '**/*.jar'
+        into("${projectName}")
+    }
+}
+
+task tar(type: Tar) {
+    archivesBaseName = "${jar.baseName}"
+    from("$buildDir/libs") {
+        include '**/*.jar'
+        into("${projectName}")
+    }
+}
+
+zip.dependsOn jar
+zip.dependsOn copyDependenciesToLib
+tar.dependsOn jar
+tar.dependsOn copyDependenciesToLib
+build.dependsOn zip
+build.dependsOn tar
+

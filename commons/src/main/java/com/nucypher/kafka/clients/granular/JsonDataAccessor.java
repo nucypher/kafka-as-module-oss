@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.GranularUtils;
-import lombok.AllArgsConstructor;
 import org.bouncycastle.util.encoders.Hex;
 
 import java.io.IOException;
@@ -235,12 +234,21 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
         encryptedNode.remove(i);
     }
 
-    @AllArgsConstructor
     private static class FieldObject {
         private JsonNode parentNode;
         private JsonNode childNode;
         private Integer index;
         private String fieldName;
+
+        public FieldObject(JsonNode parentNode,
+                           JsonNode childNode,
+                           Integer index,
+                           String fieldName) {
+            this.parentNode = parentNode;
+            this.childNode = childNode;
+            this.index = index;
+            this.fieldName = fieldName;
+        }
 
         public JsonNode getValue() {
             return childNode;

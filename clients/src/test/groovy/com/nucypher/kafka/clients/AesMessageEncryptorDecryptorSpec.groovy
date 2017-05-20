@@ -1,67 +1,55 @@
 package com.nucypher.kafka.clients
 
-import com.nucypher.kafka.DefaultProvider
 import com.nucypher.kafka.TestConstants
-import com.nucypher.kafka.clients.decrypt.AesMessageDecryptorDeserializer
-import com.nucypher.kafka.clients.decrypt.aes.AesGcmCipherDecryptor
-import com.nucypher.kafka.clients.encrypt.AesMessageEncryptorSerializer
-import com.nucypher.kafka.clients.encrypt.aes.AesGcmCipherEncryptor
+import com.nucypher.kafka.clients.decrypt.AesMessageDeserializer
+import com.nucypher.kafka.clients.encrypt.AesMessageSerializer
 import com.nucypher.kafka.utils.EncryptionAlgorithm
 import com.nucypher.kafka.utils.KeyUtils
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import spock.lang.Specification
 
-import java.security.PrivateKey
-import java.security.PublicKey
+import java.security.KeyPair
 
 import static com.nucypher.kafka.TestConstants.PEM
 
 /**
+ * Test for {@link AesMessageSerializer} and {@link AesMessageDeserializer}
  */
 class AesMessageEncryptorDecryptorSpec extends Specification {
 
-    static final EncryptionAlgorithm algorithm = TestConstants.ENCRYPTION_ALGORITHM
-
-    static {
-        DefaultProvider.initializeProvider()
-    }
+    static final EncryptionAlgorithm ALGORITHM = TestConstants.ENCRYPTION_ALGORITHM
 
     def 'encrypt and decrypt message'() {
-        setup: 'initialize'
+        setup: 'initialization'
 
-        String data = "1234567890QWERTY1234567890QWERTY1234567890QWERTY"
+        String topic = "topic"
+        Random random = new Random()
+        String data = new BigInteger(130, random).toString(32)
 
-        // load PEM file from resources
-        File file = new File(this.getClass().getClassLoader().getResource(PEM).getFile())
-        PrivateKey privateKey = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPrivate()
-        PublicKey publicKey = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPublic()
+        File file = new File(this.getClass().getClassLoader()
+                .getResource(PEM).getFile())
+        KeyPair keyPair = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath())
 
-        // initialize Encryptor
-        AesGcmCipherEncryptor aesGcmEncryptor = new AesGcmCipherEncryptor(algorithm, publicKey)
-        AesMessageEncryptorSerializer<String> messageEncryptorSerializer =
-                new AesMessageEncryptorSerializer<>(
+        AesMessageSerializer<String> messageSerializer =
+                new AesMessageSerializer<>(
                         new StringSerializer(),
-                        aesGcmEncryptor,
-                        aesGcmEncryptor
+                        ALGORITHM,
+                        keyPair.public
                 )
 
-        AesGcmCipherDecryptor aesGcmDecryptor = new AesGcmCipherDecryptor(privateKey)
-        AesMessageDecryptorDeserializer<String> messageDecryptorDeserializer =
-                new AesMessageDecryptorDeserializer<>(
+        AesMessageDeserializer<String> messageDeserializer =
+                new AesMessageDeserializer<>(
                         new StringDeserializer(),
-                        aesGcmDecryptor
+                        ALGORITHM,
+                        keyPair.private
                 )
 
+        when: 'encrypt and decrypt'
+        byte[] encrypted = messageSerializer.serialize(topic, data)
+        String result = messageDeserializer.deserialize(topic, encrypted)
 
-        when: 'encrypt to byte array'
-        byte[] encrypted = messageEncryptorSerializer.serialize("", data)
-
-
-
-        String result = messageDecryptorDeserializer.deserialize("", encrypted)
-
-        then: 'get decrypted result from deserializer'
+        then: 'should be initial data'
         result == data
     }
 

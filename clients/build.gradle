@@ -8,7 +8,6 @@ jar {
 }
 
 dependencies {
-
     compile project(':commons')
 
     testCompile project(path: ':commons', configuration: 'testArchives')

@@ -1,6 +1,5 @@
 package com.nucypher.kafka.clients.granular
 
-import com.nucypher.kafka.Pair
 import com.nucypher.kafka.errors.CommonException
 import com.nucypher.kafka.utils.AvroUtils
 import com.nucypher.kafka.utils.ByteUtils
@@ -100,7 +99,7 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         encryptedSchema.addProp("initialSchemaId", schemaId)
         List<String> encrypted = ["boolean", "map.key1", "array.1", "int", "bytes",
                                   "double", "float", "long", "string", "null", "null2",
-                                  "enum", "fixed", "union", "union2",  "record.int",
+                                  "enum", "fixed", "union", "union2", "record.int",
                                   "map.key2", "array.2", "complex.record"]
         List<String> partiallyEncrypted = ["boolean", "map.key1", "array.1"]
 
@@ -225,12 +224,12 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         dataAccessor.deserialize(topic, data)
         dataAccessor.seekToNext()
         byte[] bytes = dataAccessor.serialize()
-        Pair<Integer, GenericRecord> pair =
+        AvroTestUtils.IdRecord idRecord =
                 AvroTestUtils.deserializeWithoutSchema(inputSchema, bytes)
 
         then: 'should be the same data'
-        pair.getFirst() == inputSchemaId
-        inputRecord.equals(pair.getLast())
+        idRecord.id == inputSchemaId
+        inputRecord.equals(idRecord.genericRecord)
 
         where:
         inputSchemaId << [
@@ -445,13 +444,13 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
                 ByteUtils.serialize(((GenericRecord) record.get("complex")).get("record")))
 
         byte[] bytes = dataAccessor.serialize()
-        Pair<Integer, GenericRecord> pair =
+        AvroTestUtils.IdRecord idRecord =
                 AvroTestUtils.deserializeWithoutSchema(encryptedSchema, bytes)
 
         then: 'should be right schema and records'
-        pair.getFirst() == encryptedSchemaId
+        idRecord.id == encryptedSchemaId
         //need equals method otherwise AvroRuntimeException: Can't compare maps!
-        partiallyEncryptedRecord.equals(pair.getLast())
+        partiallyEncryptedRecord.equals(idRecord.genericRecord)
 
         when: 'add rest unencrypted values to data'
         dataAccessor.deserialize(topic, bytes)
@@ -465,12 +464,12 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
                 ByteUtils.serialize(((List<Object>) record.get("array")).get(0)))
 
         bytes = dataAccessor.serialize()
-        pair = AvroTestUtils.deserializeWithoutSchema(schema, bytes)
+        idRecord = AvroTestUtils.deserializeWithoutSchema(schema, bytes)
 
         then: 'should be unencrypted data'
-        pair.getFirst() == schemaId
+        idRecord.id == schemaId
         //need equals method otherwise AvroRuntimeException: Can't compare maps!
-        record.equals(pair.getLast())
+        record.equals(idRecord.genericRecord)
 
         where:
         encryptedRecord << [encryptedFirstRecord, encryptedSecondRecord]
@@ -496,13 +495,13 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
                 ByteUtils.serialize(((List<Object>) record.get("array")).get(0)))
 
         byte[] bytes = dataAccessor.serialize()
-        Pair<Integer, GenericRecord> pair =
+        AvroTestUtils.IdRecord idRecord =
                 AvroTestUtils.deserializeWithoutSchema(encryptedSchema, bytes)
 
         then: 'should be right schema and record'
-        pair.getFirst() == encryptedSchemaId
+        idRecord.id == encryptedSchemaId
         //need equals method otherwise AvroRuntimeException: Can't compare maps!
-        partiallyEncryptedRecord.equals(pair.getLast())
+        partiallyEncryptedRecord.equals(idRecord.genericRecord)
 
         when: 'add rest encrypted values to data'
         dataAccessor.deserialize(topic, bytes)
@@ -521,12 +520,12 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
                 ByteUtils.serialize(((GenericRecord) record.get("complex")).get("record")))
 
         bytes = dataAccessor.serialize()
-        pair = AvroTestUtils.deserializeWithoutSchema(encryptedSchema, bytes)
+        idRecord = AvroTestUtils.deserializeWithoutSchema(encryptedSchema, bytes)
 
         then: 'should be encrypted data'
-        pair.getFirst() == encryptedSchemaId
+        idRecord.id == encryptedSchemaId
         //need equals method otherwise AvroRuntimeException: Can't compare maps!
-        encryptedRecord.equals(pair.getLast())
+        encryptedRecord.equals(idRecord.genericRecord)
 
         where:
         encryptedRecord << [encryptedFirstRecord, encryptedSecondRecord]

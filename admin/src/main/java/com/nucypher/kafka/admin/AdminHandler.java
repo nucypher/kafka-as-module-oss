@@ -183,7 +183,6 @@ public class AdminHandler {
 
         KeyPair clientKeyPair;
         try {
-            DefaultProvider.initializeProvider();
             clientKeyPair = KeyUtils.getECKeyPairFromPEM(clientKey);
         } catch (IOException e) {
             throw new CommonException(e);
@@ -370,7 +369,7 @@ public class AdminHandler {
                                 String privateKeyPath,
                                 String publicKeyPath) {
         try {
-            KeyPair keyPair = KeyUtils.generateECKeyPair(algorithm, curve).getFirst();
+            KeyPair keyPair = KeyUtils.generateECKeyPair(algorithm, curve).getKeyPair();
             LOGGER.info("Key pair '{}' were generated", curve);
             KeyUtils.writeKeyPairToPEM(privateKeyPath, keyPair, KeyType.PRIVATE);
             LOGGER.info("Private key was saved to the path '{}'", privateKeyPath);

@@ -5,7 +5,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.security.Security;
 
 /**
- *
+ * Class for provider initialization
  */
 public class DefaultProvider {
 

@@ -10,10 +10,11 @@ Run initialize_project.sh
 # Building
 Run build_project.sh.  
 After successful building run next command:  
-./gradlew shadowJar releaseTarGz -x signArchives  
-The archives will be located at admin/build/distributions, kafka/core/build/distributions and examples/build/libs folders.  
-Unpack admin, kafka archives and copy examples jar to result folders.  
+./gradlew releaseTarGz -x signArchives  
+The archives will be located at admin/build/distributions, kafka/core/build/distributions and examples/build/distributions folders.  
+Unpack admin, kafka and examples archives.  
 Export environment variables ADMIN_HOME, KAFKA_HOME and EXAMPLES_HOME for result folders.  
+Export environment variable KEYS_HOME for folder with keys.  
 
 # Administration console
 Administrator console is used to manage channels (topics) and re-encryption keys for Kafka broker.  
@@ -34,26 +35,26 @@ nucypher.cache.channels.capacity - channels cache capacity, default 1000
 
 # Prepared configuration for the demonstration  
 Configuration files for starting ZooKeeper and Kafka servers with plain SASL are prepared in the repository (kafka/config):  
-* zookeeper_server_jaas.conf - JAAS configuration for ZooKeeper server
-* zookeeper-nucypher.properties - ZooKeeper configuration with configured SASL provider
-* kafka_server_jaas.conf - JAAS configuration for Kafka brokers
-* server-nucypher.properties - Kafka configuration with configured SASL authentication and root path of re-encryption keys (/keys)
+* zookeeper_server_jaas.conf - JAAS configuration for ZooKeeper server  
+* zookeeper-nucypher.properties - ZooKeeper configuration with configured SASL provider  
+* kafka_server_jaas.conf - JAAS configuration for Kafka brokers  
+* server-nucypher.properties - Kafka configuration with configured SASL authentication and root path of re-encryption keys (/keys)  
 
-Configuration files for using administration console ($ADMIN_HOME/config-example):
-* config.properties - console configuration with configured users and re-encryption keys path (/keys/admin)
-* jaas.conf - JAAS configuration for console
+Configuration files for using administration console ($ADMIN_HOME/config-example):  
+* config.properties - console configuration with configured users and re-encryption keys path (/keys/admin)  
+* jaas.conf - JAAS configuration for console  
 
 JAAS configuration has 4 users:  
-* kafka - Kafka - ZooKeeper user
-* admin - user for administration console
-* broker - user for connecting Kafka brokers together
-* alice - user for Kafka consumers and producers
+* kafka - Kafka - ZooKeeper user  
+* admin - user for administration console  
+* broker - user for connecting Kafka brokers together  
+* alice - user for Kafka consumers and producers  
 
 # Topics
 There are 3 types of topics:  
-* simple topic - no special message processing on broker side
-* topic with full encryption - each message is fully encrypted with one EDEK and one private key, Kafka broker re-encrypts EDEK using master key
-* topic with granular encryption - each message is encrypted by fields (currently only JSON format) with different EDEKs and one private key. Kafka broker re-encrypts each EDEK using derived key
+* simple topic - no special message processing on broker side  
+* topic with full encryption - each message is fully encrypted with one EDEK and one private key, Kafka broker re-encrypts EDEK using master key  
+* topic with granular encryption - each message is encrypted by fields (currently only JSON format) with different EDEKs and one private key. Kafka broker re-encrypts each EDEK using derived key  
 
 # Examples of clients
 The repository has examples of Kafka clients to send unencrypted or encrypted messages (examples project).  
@@ -111,22 +112,22 @@ $KAFKA_HOME/bin/kafka-server-start.sh $KAFKA_HOME/config/server-nucypher.propert
 ## EC keys generation
 Generate 3 key pairs:  
 `mkdir keys`  
-`$ADMIN_HOME/bin/nucypher-kafka-admin --generate --private-key keys/master-private-key.pem --public-key keys/master-public-key.pem --curve-name secp521r1`  
-`$ADMIN_HOME/bin/nucypher-kafka-admin --generate --private-key keys/producer-private-key.pem --public-key keys/producer-public-key.pem --curve-name secp521r1`  
-`$ADMIN_HOME/bin/nucypher-kafka-admin --generate --private-key keys/consumer-private-key.pem --public-key keys/consumer-public-key.pem --curve-name secp521r1`  
+`$ADMIN_HOME/bin/nucypher-kafka-admin --generate --private-key $KEYS_DIR/master-private-key.pem --public-key $KEYS_DIR/master-public-key.pem --curve-name secp521r1`  
+`$ADMIN_HOME/bin/nucypher-kafka-admin --generate --private-key $KEYS_DIR/producer-private-key.pem --public-key $KEYS_DIR/producer-public-key.pem --curve-name secp521r1`  
+`$ADMIN_HOME/bin/nucypher-kafka-admin --generate --private-key $KEYS_DIR/consumer-private-key.pem --public-key $KEYS_DIR/consumer-public-key.pem --curve-name secp521r1`  
 
 ![Starting Kafka](screenshots/EC_Keys.png)
 
 ## Simple topic without re-encryption
 * Send and receive unencrypted message  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar com.nucypher.kafka.clients.example.general.StringProducer non simple '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}'`  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar com.nucypher.kafka.clients.example.general.StringConsumer non simple`
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar com.nucypher.kafka.clients.example.general.StringProducer non simple '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}'`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar com.nucypher.kafka.clients.example.general.StringConsumer non simple`  
 * Send and receive fully encrypted message using master keys   
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar com.nucypher.kafka.clients.example.general.StringProducer full full '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' keys/master-public-key.pem`  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar com.nucypher.kafka.clients.example.general.StringConsumer full full keys/master-private-key.pem`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar com.nucypher.kafka.clients.example.general.StringProducer full full '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' $KEYS_DIR/master-public-key.pem`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar com.nucypher.kafka.clients.example.general.StringConsumer full full $KEYS_DIR/master-private-key.pem`  
 * Send and receive granular encrypted message with certain fields using master keys   
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar com.nucypher.kafka.clients.example.general.StringProducer granular granular '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' keys/master-public-key.pem a.1 b.b c d e.e.e.1`  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar com.nucypher.kafka.clients.example.general.StringConsumer granular granular keys/master-private-key.pem`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar com.nucypher.kafka.clients.example.general.StringProducer granular granular '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' $KEYS_DIR/master-public-key.pem a.1 b.b c d e.e.e.1`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar com.nucypher.kafka.clients.example.general.StringConsumer granular granular $KEYS_DIR/master-private-key.pem`  
 
 ![Simple topic](screenshots/Simple.png)
 
@@ -139,21 +140,21 @@ Generate 3 key pairs:
 --add-channel --channel full --channel-type full`  
 * Create re-encryption key for producer    
 `$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --master-key keys/master-private-key.pem --client-key keys/producer-private-key.pem 
+--add-key --master-key $KEYS_DIR/master-private-key.pem --client-key $KEYS_DIR/producer-private-key.pem 
 --client-type producer --client-name alice --channel full --days 365`  
 * Create re-encryption key for consumer    
 `$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --master-key keys/master-private-key.pem --client-key keys/consumer-private-key.pem 
+--add-key --master-key $KEYS_DIR/master-private-key.pem --client-key $KEYS_DIR/consumer-private-key.pem 
 --client-type consumer --client-name alice --channel full --days 365`  
 * Send fully encrypted message using producer public key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar
 com.nucypher.kafka.clients.example.general.StringProducer full full
 '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' 
-keys/producer-public-key.pem`  
+$KEYS_DIR/producer-public-key.pem`  
 * Receive fully encrypted message using consumer private key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringConsumer full full
-keys/consumer-private-key.pem`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringConsumer full full 
+$KEYS_DIR/consumer-private-key.pem`  
 
 ![Full topic 1](screenshots/Full_1.png)
 
@@ -167,17 +168,17 @@ keys/consumer-private-key.pem`
 --add-key --client-type producer --client-name alice --channel full2`  
 * Create re-encryption key for consumer    
 `$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --master-key keys/master-private-key.pem --client-key keys/consumer-public-key.pem 
+--add-key --master-key $KEYS_DIR/master-private-key.pem --client-key $KEYS_DIR/consumer-public-key.pem 
 --client-type consumer --client-name alice --channel full2 --days 365`  
 * Send fully encrypted message using master public key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringProducer full full2
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringProducer full full2 
 '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' 
-keys/master-public-key.pem`  
+$KEYS_DIR/master-public-key.pem`  
 * Receive fully encrypted message using consumer private key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringConsumer full full2
-keys/consumer-private-key.pem`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringConsumer full full2 
+$KEYS_DIR/consumer-private-key.pem`  
 
 ![Full topic 3](screenshots/Full_3.png)
 
@@ -187,18 +188,18 @@ keys/consumer-private-key.pem`
 * Export environment variable  
 `export JAVA_OPTS=-Djava.security.auth.login.config=$ADMIN_HOME/config-example/jaas.conf`  
 * Create 'full3' channel and empty re-encryption key for producer    
-`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --client-type producer --client-name alice --channel full3`
+`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties 
+--add-key --client-type producer --client-name alice --channel full3`  
 * Create empty re-encryption key for consumer    
-`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --client-type consumer --client-name alice --channel full3`
+`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties 
+--add-key --client-type consumer --client-name alice --channel full3`  
 * Send fully encrypted message using master public key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringProducer full full3
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringProducer full full3 
 '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' 
-keys/master-public-key.pem`  
+$KEYS_DIR/master-public-key.pem`  
 * Receive fully encrypted message without decryption  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
 com.nucypher.kafka.clients.example.general.StringConsumer non full3`  
 
 ![Full topic 5](screenshots/Full_5.png)
@@ -214,25 +215,25 @@ com.nucypher.kafka.clients.example.general.StringConsumer non full3`
 --channel granular --channel-type granular 
 --channel-data-format json`  
 * Create re-encryption key using certain fields for producer  
-`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --master-key keys/master-private-key.pem --client-key keys/producer-private-key.pem 
+`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties 
+--add-key --master-key $KEYS_DIR/master-private-key.pem --client-key $KEYS_DIR/producer-private-key.pem 
 --client-type producer --client-name alice --channel granular --days 365 
 --field a.1 --field b.b --field c --field d --field e.e.e.1`  
 * Create re-encryption key using some fields for consumer    
-`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --master-key keys/master-private-key.pem --client-key keys/consumer-private-key.pem 
---client-type consumer --client-name alice --channel granular --days 365
+`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties 
+--add-key --master-key $KEYS_DIR/master-private-key.pem --client-key $KEYS_DIR/consumer-private-key.pem 
+--client-type consumer --client-name alice --channel granular --days 365 
 --field a.1 --field b.b --field d --field e.e.e.1`  
 * Send granular encrypted message with certain fields using producer public key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringProducer granular granular
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringProducer granular granular 
 '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' 
-keys/producer-public-key.pem
+$KEYS_DIR/producer-public-key.pem 
 a.1 b.b c d e.e.e.1`  
 * Receive granular encrypted message using consumer private key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringConsumer granular granular
-keys/consumer-private-key.pem`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringConsumer granular granular 
+$KEYS_DIR/consumer-private-key.pem`  
 
 ![Granular topic 1](screenshots/Granular_1.png)
 
@@ -252,26 +253,26 @@ keys/consumer-private-key.pem`
 * Export environment variable  
 `export JAVA_OPTS=-Djava.security.auth.login.config=$ADMIN_HOME/config-example/jaas.conf`  
 * Create 'granular' channel and empty re-encryption key using certain fields for producer  
-`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --master-key keys/master-private-key.pem --client-key keys/master-private-key.pem 
+`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties 
+--add-key --master-key $KEYS_DIR/master-private-key.pem --client-key $KEYS_DIR/master-private-key.pem 
 --client-type producer --client-name alice --channel granular2 
---field a.1 --field b.b --field c --field d --field e.e.e.1
+--field a.1 --field b.b --field c --field d --field e.e.e.1 
 --channel-data-format json`  
 * Create re-encryption key using some fields for consumer    
-`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties
---add-key --master-key keys/master-private-key.pem --client-key keys/consumer-public-key.pem
---client-type consumer --client-name alice --channel granular2 --days 365
+`$ADMIN_HOME/bin/nucypher-kafka-admin --config $ADMIN_HOME/config-example/config.properties 
+--add-key --master-key $KEYS_DIR/master-private-key.pem --client-key $KEYS_DIR/consumer-public-key.pem 
+--client-type consumer --client-name alice --channel granular2 --days 365 
 --field a.1 --field b.b --field d --field e.e.e.1`  
 * Send granular encrypted message with certain fields using master public key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringProducer granular granular2
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringProducer granular granular2 
 '{"a":[false,true],"b":{"b":10},"c":"c","d":null,"e":{"e":{"e":[{"e":"e"}]}},"z":"z"}' 
-keys/master-public-key.pem
+$KEYS_DIR/master-public-key.pem 
 a.1 b.b c d e.e.e.1`  
 * Receive granular encrypted message using consumer private key  
-`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT-all.jar
-com.nucypher.kafka.clients.example.general.StringConsumer granular granular2
-keys/consumer-private-key.pem`  
+`java -cp $EXAMPLES_HOME/nucypher-kafka-examples-1.0-SNAPSHOT.jar 
+com.nucypher.kafka.clients.example.general.StringConsumer granular granular2 
+$KEYS_DIR/consumer-private-key.pem`  
 
 ![Granular topic 8](screenshots/Granular_8.png)
 

@@ -23,6 +23,5 @@ public class Constants implements Serializable {
 	public static final String KEY_EDEK = "K1";
 	public static final String KEY_IV = "K2";
 	public static final String KEY_IS_COMPLEX = "K3";
-	public static final String KEY_ALGORITHM = "K4";
 
 }

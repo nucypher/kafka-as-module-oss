@@ -7,7 +7,6 @@ import com.nucypher.crypto.elgamal.ElGamalReEncryptionKeyGenerator;
 import com.nucypher.crypto.elgamal.WrapperElGamalPRE;
 import com.nucypher.crypto.interfaces.ReEncryptionKey;
 import com.nucypher.kafka.DefaultProvider;
-import com.nucypher.kafka.Pair;
 import com.nucypher.kafka.errors.CommonException;
 import org.bouncycastle.asn1.ASN1OutputStream;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -15,7 +14,6 @@ import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x9.X9ECParameters;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.interfaces.ECKey;
-import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
@@ -34,14 +32,10 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.Key;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
 
 /**
  * Class for working with keys
@@ -51,6 +45,41 @@ import java.security.spec.InvalidKeySpecException;
 public class KeyUtils {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KeyUtils.class);
+
+    static {
+        DefaultProvider.initializeProvider();
+    }
+
+    /**
+     * Holder for {@link KeyPair} and {@link ECParameterSpec}
+     */
+    public static class KeyPairHolder {
+        private KeyPair keyPair;
+        private ECParameterSpec ecParameterSpec;
+
+        /**
+         * @param keyPair         {@link KeyPair}
+         * @param ecParameterSpec {@link ECParameterSpec}
+         */
+        public KeyPairHolder(KeyPair keyPair, ECParameterSpec ecParameterSpec) {
+            this.keyPair = keyPair;
+            this.ecParameterSpec = ecParameterSpec;
+        }
+
+        /**
+         * @return {@link KeyPair}
+         */
+        public KeyPair getKeyPair() {
+            return keyPair;
+        }
+
+        /**
+         * @return {@link ECParameterSpec}
+         */
+        public ECParameterSpec getEcParameterSpec() {
+            return ecParameterSpec;
+        }
+    }
 
     /**
      * Convert {@link ECParameterSpec} to byte array
@@ -145,7 +174,6 @@ public class KeyUtils {
             InvalidKeyException,
             NoSuchProviderException,
             CommonException {
-        DefaultProvider.initializeProvider();
         KeyPair keyPairFrom = getECKeyPairFromPEM(from);
         KeyPair keyPairTo = getECKeyPairFromPEM(to);
 
@@ -303,16 +331,18 @@ public class KeyUtils {
      *
      * @param algorithm encryption algorithm
      * @param curve     the name of the curve requested
+     * @return {@link KeyPair} and {@link ECParameterSpec}
      * @throws IOException if problem with serializing data
      */
-    public static Pair<KeyPair, ECParameterSpec> generateECKeyPair(
+    public static KeyPairHolder generateECKeyPair(
             EncryptionAlgorithm algorithm, String curve)
             throws IOException {
         final ECParameterSpec ecParameterSpec = ECNamedCurveTable.getParameterSpec(curve);
         KeyPair keyPair;
         switch (algorithm) {
             case BBS98:
-                WrapperBBS98 wrapperBBS98 = new WrapperBBS98(ecParameterSpec, new SecureRandom());
+                WrapperBBS98 wrapperBBS98 =
+                        new WrapperBBS98(ecParameterSpec, new SecureRandom());
                 try {
                     keyPair = wrapperBBS98.keygen();
                 } catch (InvalidAlgorithmParameterException e) {
@@ -320,7 +350,8 @@ public class KeyUtils {
                 }
                 break;
             case ELGAMAL:
-                WrapperElGamalPRE wrapperElGamal = new WrapperElGamalPRE(ecParameterSpec, new SecureRandom());
+                WrapperElGamalPRE wrapperElGamal =
+                        new WrapperElGamalPRE(ecParameterSpec, new SecureRandom());
                 try {
                     keyPair = wrapperElGamal.keygen();
                 } catch (InvalidAlgorithmParameterException e) {
@@ -332,7 +363,7 @@ public class KeyUtils {
                         "Algorithm %s is not available for generating EC key pairs",
                         algorithm);
         }
-        return new Pair<>(keyPair, ecParameterSpec);
+        return new KeyPairHolder(keyPair, ecParameterSpec);
     }
 
     /**
@@ -350,8 +381,12 @@ public class KeyUtils {
             String curve,
             KeyType keyType)
             throws IOException {
-        Pair<KeyPair, ECParameterSpec> generated = generateECKeyPair(algorithm, curve);
-        writeKeyPairToPEM(filename, generated.getFirst(), generated.getLast(), keyType);
+        KeyPairHolder generated = generateECKeyPair(algorithm, curve);
+        writeKeyPairToPEM(
+                filename,
+                generated.getKeyPair(),
+                generated.getEcParameterSpec(),
+                keyType);
         LOGGER.info("Key '{}' was generated", filename);
     }
 
@@ -414,157 +449,6 @@ public class KeyUtils {
             throw new CommonException("Can not determine the EC parameters");
         }
         writeKeyPairToPEM(filename, keyPair, ecSpec, keyType);
-    }
-
-    /**
-     * Encrypt DEK
-     *
-     * @param algorithm    encryption algorithm
-     * @param publicKey    EC public key
-     * @param DEK          Data Encryption Key
-     * @param secureRandom {@link SecureRandom}
-     * @return EDEK
-     */
-    public static byte[] encryptDEK(
-            EncryptionAlgorithm algorithm,
-            PublicKey publicKey,
-            Key DEK,
-            SecureRandom secureRandom)
-            throws NoSuchAlgorithmException, InvalidKeyException, NoSuchProviderException {
-        ECKey ecKey = (ECKey) publicKey;
-        switch (algorithm) {
-            case BBS98:
-                return new WrapperBBS98(ecKey.getParameters(), secureRandom)
-                        .encrypt(publicKey, DEK.getEncoded());
-            case ELGAMAL:
-                return new WrapperElGamalPRE(ecKey.getParameters(), secureRandom)
-                        .encrypt(publicKey, DEK.getEncoded());
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for DEK encryption",
-                        algorithm);
-        }
-    }
-
-    /**
-     * Decrypt EDEK
-     *
-     * @param algorithm  encryption algorithm
-     * @param privateKey EC private key
-     * @param bytes      EDEK
-     * @param isComplex  re-encrypted with complex key
-     * @return DEK
-     */
-    public static byte[] decryptEDEK(
-            EncryptionAlgorithm algorithm,
-            PrivateKey privateKey,
-            byte[] bytes,
-            boolean isComplex)
-            throws NoSuchAlgorithmException, InvalidKeyException,
-            NoSuchProviderException, InvalidKeySpecException {
-        ECPrivateKey ecPrivateKey = (ECPrivateKey) privateKey;
-        if (!isComplex) {
-            return decryptEDEK(algorithm, ecPrivateKey, bytes);
-        } else {
-            return decryptReEncryptionEDEK(algorithm, ecPrivateKey, bytes);
-        }
-    }
-
-    private static byte[] decryptEDEK(
-            EncryptionAlgorithm algorithm, ECPrivateKey ecPrivateKey, byte[] bytes)
-            throws NoSuchAlgorithmException, InvalidKeyException,
-            InvalidKeySpecException, NoSuchProviderException {
-        LOGGER.debug("Simple decryption");
-        switch (algorithm) {
-            case BBS98:
-                WrapperBBS98 wrapperBBS98 = new WrapperBBS98(
-                        ecPrivateKey.getParameters(), null);
-                return wrapperBBS98.decrypt(ecPrivateKey, bytes);
-            case ELGAMAL:
-                WrapperElGamalPRE wrapperElGamalPRE = new WrapperElGamalPRE(
-                        ecPrivateKey.getParameters(), null);
-                return wrapperElGamalPRE.decrypt(ecPrivateKey, bytes);
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for EDEK decryption",
-                        algorithm);
-        }
-    }
-
-    private static byte[] decryptReEncryptionEDEK(
-            EncryptionAlgorithm algorithm, ECPrivateKey ecPrivateKey, byte[] bytes)
-            throws NoSuchAlgorithmException, InvalidKeyException,
-            NoSuchProviderException, InvalidKeySpecException {
-        LOGGER.debug("Complex decryption");
-        switch (algorithm) {
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for EDEK decryption",
-                        algorithm);
-        }
-    }
-
-    /**
-     * Re-encrypt EDEK
-     *
-     * @param edek  EDEK to re-encrypt
-     * @param reKey re-encryption key
-     * @return re-encrypted EDEK
-     */
-    public static byte[] reEncryptEDEK(byte[] edek, WrapperReEncryptionKey reKey) {
-        if (reKey.isSimple()) {
-            return reEncryptEDEK(
-                    reKey.getAlgorithm(),
-                    reKey.getReEncryptionKey(),
-                    reKey.getECParameterSpec(),
-                    edek);
-        } else {
-            return reEncryptEDEK(
-                    reKey.getAlgorithm(),
-                    reKey.getReEncryptionKey(),
-                    reKey.getECParameterSpec(),
-                    edek,
-                    reKey.getEncryptedRandomKey(),
-                    reKey.getRandomKeyLength());
-        }
-    }
-
-    private static byte[] reEncryptEDEK(
-            EncryptionAlgorithm algorithm,
-            BigInteger reEncryptionKey,
-            ECParameterSpec ecSpec,
-            byte[] edek) {
-        LOGGER.debug("Simple re-encryption");
-        switch (algorithm) {
-            case BBS98:
-                WrapperBBS98 wrapperBBS98 = new WrapperBBS98(ecSpec, null);
-                return wrapperBBS98.reencrypt(reEncryptionKey, edek);
-            case ELGAMAL:
-                WrapperElGamalPRE wrapperElGamalPRE =
-                        new WrapperElGamalPRE(ecSpec, null);
-                return wrapperElGamalPRE.reencrypt(reEncryptionKey, edek);
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for simple EDEK re-encryption",
-                        algorithm);
-        }
-    }
-
-    //TODO add ElGamal and BBS98
-    private static byte[] reEncryptEDEK(
-            EncryptionAlgorithm algorithm,
-            BigInteger reEncryptionKey,
-            ECParameterSpec ecSpec,
-            byte[] edek,
-            byte[] encryptedRandomKey,
-            Integer randomKeyLength) {
-        LOGGER.debug("Complex re-encryption");
-        switch (algorithm) {
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for complex EDEK re-encryption",
-                        algorithm);
-        }
     }
 
 }

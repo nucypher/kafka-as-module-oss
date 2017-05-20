@@ -7,7 +7,7 @@ import com.nucypher.kafka.utils.EncryptionAlgorithm;
  */
 public class TestConstants {
 
-	public static final String PEM = "P521.pem"; // P256.pem
-	public static final EncryptionAlgorithm ENCRYPTION_ALGORITHM = EncryptionAlgorithm.ELGAMAL;
+    public static final String PEM = "P521.pem";
+    public static final EncryptionAlgorithm ENCRYPTION_ALGORITHM = EncryptionAlgorithm.ELGAMAL;
 
 }

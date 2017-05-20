@@ -71,21 +71,21 @@ public class ZooKeeperHandlerTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    private static final WrapperReEncryptionKey SIMPLE_KEY = DataUtils.getReEncryptionKeySimple();
+    private static final WrapperReEncryptionKey COMPLEX_KEY = DataUtils.getReEncryptionKeyComplex();
+    private static final WrapperReEncryptionKey EMPTY_KEY = DataUtils.getReEncryptionKeyEmpty();
+    private static final byte[] SIMPLE_KEY_BYTES = SIMPLE_KEY.toByteArray();
+    private static final byte[] COMPLEX_KEY_BYTES = COMPLEX_KEY.toByteArray();
+    private static final byte[] EMPTY_KEY_BYTES = EMPTY_KEY.toByteArray();
+    private static final Long EXPIRED_1 = DataUtils.getExpiredMillis();
+    private static final Long EXPIRED_2 = DataUtils.getExpiredMillis();
+    private static final byte[] EXPIRED_BYTES_1 = DataUtils.getByteArrayFromExpired(EXPIRED_1);
+    private static final byte[] EXPIRED_BYTES_2 = DataUtils.getByteArrayFromExpired(EXPIRED_2);
+
     private AdminZooKeeperHandler zooKeeperHandler;
     private CuratorFramework curator;
     private String rootPath;
     private Properties properties = new Properties();
-
-    private WrapperReEncryptionKey simpleKey = DataUtils.getReEncryptionKeySimple();
-    private WrapperReEncryptionKey complexKey = DataUtils.getReEncryptionKeyComplex();
-    private WrapperReEncryptionKey emptyKey = DataUtils.getReEncryptionKeyEmpty();
-    private byte[] simpleKeyBytes = simpleKey.toByteArray();
-    private byte[] complexKeyBytes = complexKey.toByteArray();
-    private byte[] emptyKeyBytes = emptyKey.toByteArray();
-    private Long expired1 = DataUtils.getExpiredMillis();
-    private Long expired2 = DataUtils.getExpiredMillis();
-    private byte[] expiredBytes1 = DataUtils.getByteArrayFromExpired(expired1);
-    private byte[] expiredBytes2 = DataUtils.getByteArrayFromExpired(expired2);
 
     /**
      * Initializing
@@ -107,7 +107,7 @@ public class ZooKeeperHandlerTest {
         curator.create().withACL(ACL_LIST_PATH)
                 .forPath(rootPath + "/topic1-channel", null);
         curator.create().withACL(ACL_LIST_KEY)
-                .forPath(rootPath + "/alice-producer", simpleKeyBytes);
+                .forPath(rootPath + "/alice-producer", SIMPLE_KEY_BYTES);
         curator.create().withACL(ACL_LIST_PATH)
                 .forPath(rootPath + "/topic2-channel", DataUtils.getFullEncryptedChannel());
 
@@ -121,9 +121,9 @@ public class ZooKeeperHandlerTest {
                 .forPath(rootPath + "/topic-f-channel/b-field");
 
         curator.create().withACL(ACL_LIST_KEY).forPath(
-                rootPath + "/topic-f-channel/a-field/c-field/alice-consumer", simpleKeyBytes);
+                rootPath + "/topic-f-channel/a-field/c-field/alice-consumer", SIMPLE_KEY_BYTES);
         curator.create().withACL(ACL_LIST_PATH).forPath(
-                rootPath + "/topic-f-channel/a-field/c-field/alice-consumer-expired", expiredBytes2);
+                rootPath + "/topic-f-channel/a-field/c-field/alice-consumer-expired", EXPIRED_BYTES_2);
     }
 
     /**
@@ -131,40 +131,40 @@ public class ZooKeeperHandlerTest {
      */
     @Test
     public void testAddKeyWithoutFields() throws Exception {
-        KeyHolder key = new KeyHolder("topic1", "alice", ClientType.PRODUCER, simpleKey);
+        KeyHolder key = new KeyHolder("topic1", "alice", ClientType.PRODUCER, SIMPLE_KEY);
         zooKeeperHandler.saveKeyToZooKeeper(key);
         String path = rootPath + "/topic1-channel/alice-producer";
         assertNotNull(curator.checkExists().forPath(path));
         assertNull(curator.checkExists().forPath(getExpiredPath(path)));
         assertEquals(ACL_LIST_KEY, curator.getACL().forPath(path));
-        assertArrayEquals(simpleKeyBytes, curator.getData().forPath(path));
+        assertArrayEquals(SIMPLE_KEY_BYTES, curator.getData().forPath(path));
 
-        key = new KeyHolder("topic1", "alice", ClientType.PRODUCER, complexKey, expired1);
+        key = new KeyHolder("topic1", "alice", ClientType.PRODUCER, COMPLEX_KEY, EXPIRED_1);
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/topic1-channel/alice-producer";
         assertNotNull(curator.checkExists().forPath(path));
         assertNotNull(curator.checkExists().forPath(getExpiredPath(path)));
-        assertArrayEquals(expiredBytes1, curator.getData().forPath(getExpiredPath(path)));
+        assertArrayEquals(EXPIRED_BYTES_1, curator.getData().forPath(getExpiredPath(path)));
         assertEquals(ACL_LIST_KEY, curator.getACL().forPath(path));
         assertEquals(ACL_LIST_PATH, curator.getACL().forPath(getExpiredPath(path)));
-        assertArrayEquals(complexKeyBytes, curator.getData().forPath(path));
+        assertArrayEquals(COMPLEX_KEY_BYTES, curator.getData().forPath(path));
 
         path = rootPath + "/topic2-channel/alice-producer";
         key = KeyHolder.builder().setChannel("topic2").setName("alice")
-                .setType(ClientType.PRODUCER).setKey(complexKey).build();
+                .setType(ClientType.PRODUCER).setKey(COMPLEX_KEY).build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         assertNotNull(curator.checkExists().forPath(path));
 
-        key = new KeyHolder(null, "alice", ClientType.PRODUCER, complexKey, expired2);
+        key = new KeyHolder(null, "alice", ClientType.PRODUCER, COMPLEX_KEY, EXPIRED_2);
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/alice-producer";
         assertNotNull(curator.checkExists().forPath(path));
         assertNotNull(curator.checkExists().forPath(getExpiredPath(path)));
-        assertArrayEquals(expiredBytes2, curator.getData().forPath(getExpiredPath(path)));
+        assertArrayEquals(EXPIRED_BYTES_2, curator.getData().forPath(getExpiredPath(path)));
         assertEquals(ACL_LIST_KEY, curator.getACL().forPath(path));
         assertEquals(ACL_LIST_PATH, curator.getACL().forPath(getExpiredPath(path)));
-        assertArrayEquals(complexKeyBytes, curator.getData().forPath(path));
-        key = KeyHolder.builder().setName("alice").setType(ClientType.PRODUCER).setKey(complexKey).build();
+        assertArrayEquals(COMPLEX_KEY_BYTES, curator.getData().forPath(path));
+        key = KeyHolder.builder().setName("alice").setType(ClientType.PRODUCER).setKey(COMPLEX_KEY).build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         assertNull(curator.checkExists().forPath(getExpiredPath(path)));
     }
@@ -179,28 +179,28 @@ public class ZooKeeperHandlerTest {
     @Test
     public void testAddKeyWithFields() throws Exception {
         KeyHolder key = KeyHolder.builder().setChannel("topic-f").setName("alice")
-                .setType(ClientType.PRODUCER).setKey(simpleKey).setField("a.c").build();
+                .setType(ClientType.PRODUCER).setKey(SIMPLE_KEY).setField("a.c").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         String path = rootPath + "/topic-f-channel/a-field/c-field/alice-producer";
         assertNotNull(curator.checkExists().forPath(path));
         assertNull(curator.checkExists().forPath(getExpiredPath(path)));
         assertEquals(ACL_LIST_KEY, curator.getACL().forPath(path));
-        assertArrayEquals(simpleKeyBytes, curator.getData().forPath(path));
+        assertArrayEquals(SIMPLE_KEY_BYTES, curator.getData().forPath(path));
 
         key = KeyHolder.builder().setChannel("topic-f").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(complexKey)
-                .setExpiredDate(expired1).setField("b").build();
+                .setType(ClientType.CONSUMER).setKey(COMPLEX_KEY)
+                .setExpiredDate(EXPIRED_1).setField("b").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/topic-f-channel/b-field/alice-consumer";
         assertNotNull(curator.checkExists().forPath(path));
         assertNotNull(curator.checkExists().forPath(getExpiredPath(path)));
-        assertArrayEquals(expiredBytes1, curator.getData().forPath(getExpiredPath(path)));
+        assertArrayEquals(EXPIRED_BYTES_1, curator.getData().forPath(getExpiredPath(path)));
         assertEquals(ACL_LIST_KEY, curator.getACL().forPath(path));
         assertEquals(ACL_LIST_PATH, curator.getACL().forPath(getExpiredPath(path)));
-        assertArrayEquals(complexKeyBytes, curator.getData().forPath(path));
+        assertArrayEquals(COMPLEX_KEY_BYTES, curator.getData().forPath(path));
 
         key = KeyHolder.builder().setChannel("topic-f").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).setField("a.c").build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).setField("a.c").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/topic-f-channel/a-field/c-field/alice-consumer";
         assertNotNull(curator.checkExists().forPath(path));
@@ -212,7 +212,7 @@ public class ZooKeeperHandlerTest {
         curator.create().withACL(ACL_LIST_PATH)
                 .forPath(rootPath + "/topic-f2-channel", DataUtils.getPartialEncryptedChannel());
         key = KeyHolder.builder().setChannel("topic-f2").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).setField("a").build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).setField("a").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/topic-f2-channel/a-field";
         assertNotNull(curator.checkExists().forPath(path));
@@ -224,7 +224,7 @@ public class ZooKeeperHandlerTest {
         assertNull(curator.getData().forPath(path));
 
         key = KeyHolder.builder().setChannel("topic-f2").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).setField("b.c").build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).setField("b.c").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/topic-f2-channel/b-field";
         assertNotNull(curator.checkExists().forPath(path));
@@ -240,13 +240,13 @@ public class ZooKeeperHandlerTest {
 
         //intermediate fields
         key = KeyHolder.builder().setChannel("topic-f").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).setField("a").build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).setField("a").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/topic-f-channel/a-field/alice-consumer";
         assertNotNull(curator.checkExists().forPath(path));
 
         key = KeyHolder.builder().setChannel("topic-f").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).setField("b.d").build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).setField("b.d").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
         path = rootPath + "/topic-f-channel/b-field/d-field";
         assertNotNull(curator.checkExists().forPath(path));
@@ -275,7 +275,7 @@ public class ZooKeeperHandlerTest {
         expectedException.expectMessage(StringContains.containsString(
                 "Changing the encryption type is not available"));
         KeyHolder key = KeyHolder.builder().setChannel("topic1").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).setField("a").build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).setField("a").build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
     }
 
@@ -288,7 +288,7 @@ public class ZooKeeperHandlerTest {
         expectedException.expectMessage(StringContains.containsString(
                 "Changing the encryption type is not available"));
         KeyHolder key = KeyHolder.builder().setChannel("topic-f").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
     }
 
@@ -300,7 +300,7 @@ public class ZooKeeperHandlerTest {
         expectedException.expect(CommonException.class);
         expectedException.expectMessage(StringContains.containsString("not exist"));
         KeyHolder key = KeyHolder.builder().setChannel("topic-f2").setName("alice")
-                .setType(ClientType.CONSUMER).setKey(emptyKey).build();
+                .setType(ClientType.CONSUMER).setKey(EMPTY_KEY).build();
         zooKeeperHandler.saveKeyToZooKeeper(key);
     }
 
@@ -310,15 +310,15 @@ public class ZooKeeperHandlerTest {
     @Test
     public void testDeleteKey() throws Exception {
         curator.create().withACL(ACL_LIST_KEY)
-                .forPath(rootPath + "/topic1-channel/alice-producer", complexKeyBytes);
+                .forPath(rootPath + "/topic1-channel/alice-producer", COMPLEX_KEY_BYTES);
         curator.create().withACL(ACL_LIST_PATH)
-                .forPath(rootPath + "/topic1-channel/alice-producer-expired", expiredBytes1);
+                .forPath(rootPath + "/topic1-channel/alice-producer-expired", EXPIRED_BYTES_1);
         curator.create().withACL(ACL_LIST_KEY)
-                .forPath(rootPath + "/topic1-channel/alice-consumer", emptyKeyBytes);
+                .forPath(rootPath + "/topic1-channel/alice-consumer", EMPTY_KEY_BYTES);
         curator.create().withACL(ACL_LIST_PATH)
-                .forPath(rootPath + "/topic1-channel/alice-consumer-expired", expiredBytes2);
+                .forPath(rootPath + "/topic1-channel/alice-consumer-expired", EXPIRED_BYTES_2);
         curator.create().withACL(ACL_LIST_PATH)
-                .forPath(rootPath + "/topic-f-channel/b-field/alice-consumer", simpleKeyBytes);
+                .forPath(rootPath + "/topic-f-channel/b-field/alice-consumer", SIMPLE_KEY_BYTES);
 
         zooKeeperHandler.deleteKeyFromZooKeeper("topic1", "alice", ClientType.PRODUCER);
         String path = rootPath + "/topic1-channel/alice-producer";
@@ -455,7 +455,8 @@ public class ZooKeeperHandlerTest {
         zooKeeperHandler.createChannelInZooKeeper(
                 "topic-f",
                 EncryptionType.GRANULAR,
-                new StructuredDataAccessorStub(){}.getClass());
+                new StructuredDataAccessorStub() {
+                }.getClass());
     }
 
     /**

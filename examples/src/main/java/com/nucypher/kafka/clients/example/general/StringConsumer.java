@@ -1,7 +1,7 @@
 package com.nucypher.kafka.clients.example.general;
 
-import com.nucypher.kafka.DefaultProvider;
-import com.nucypher.kafka.clients.decrypt.AesMessageDecryptorDeserializer;
+import com.nucypher.kafka.TestConstants;
+import com.nucypher.kafka.clients.decrypt.AesMessageDeserializer;
 import com.nucypher.kafka.clients.decrypt.AesStructuredMessageDeserializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
 import com.nucypher.kafka.clients.granular.DataFormat;
@@ -47,7 +47,6 @@ public class StringConsumer {
         String topic = args[1];
         String keyPath = args.length > 2 ? args[2] : null;
 
-        DefaultProvider.initializeProvider();
         try (KafkaConsumer<String, String> consumer = getConsumer(type, keyPath)) {
             consumer.subscribe(Collections.singletonList(topic));
             ConsumerRecords<String, String> records = consumer.poll(Long.MAX_VALUE);
@@ -72,8 +71,9 @@ public class StringConsumer {
                 return new KafkaConsumer<>(
                         getProperties(),
                         new StringDeserializer(),
-                        new AesMessageDecryptorDeserializer<>(
+                        new AesMessageDeserializer<>(
                                 new StringDeserializer(),
+                                TestConstants.ENCRYPTION_ALGORITHM,
                                 privateKey
                         )
                 );
@@ -84,6 +84,7 @@ public class StringConsumer {
                         new StringDeserializer(),
                         new AesStructuredMessageDeserializer<>(
                                 new StringDeserializer(),
+                                TestConstants.ENCRYPTION_ALGORITHM,
                                 privateKey,
                                 DataFormat.JSON
                         )

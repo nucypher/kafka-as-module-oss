@@ -1,8 +1,6 @@
 package com.nucypher.kafka.utils;
 
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.TestConstants;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -19,7 +17,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 /**
- * Test for {@link HmacKeyGenerator}
+ * Test for {@link SubkeyGenerator}
  *
  * @author szotov
  */
@@ -32,14 +30,6 @@ public final class SubkeyGeneratorTest {
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    /**
-     * Provider initialization
-     */
-    @BeforeClass
-    public static void initialize() {
-        DefaultProvider.initializeProvider();
-    }
 
     /**
      * @return array of available EC curve names
@@ -62,7 +52,7 @@ public final class SubkeyGeneratorTest {
     public void testGenerateKey() throws IOException {
         for (int i = 0; i < 20; i++) {
             PrivateKey basePrivateKey = KeyUtils.generateECKeyPair(ALGORITHM, curveName)
-                    .getFirst().getPrivate();
+                    .getKeyPair().getPrivate();
 
             String message = "a.b.2";
             PrivateKey generatedPrivateKey1 = SubkeyGenerator.deriveKey(basePrivateKey, message, null);
@@ -76,7 +66,7 @@ public final class SubkeyGeneratorTest {
             assertEquals(generatedPrivateKey2, generatedPrivateKey3);
 
             basePrivateKey = KeyUtils.generateECKeyPair(ALGORITHM, curveName)
-                    .getFirst().getPrivate();
+                    .getKeyPair().getPrivate();
             PrivateKey generatedPrivateKey4 = SubkeyGenerator.deriveKey(basePrivateKey, message, null);
             assertNotEquals(generatedPrivateKey3, generatedPrivateKey4);
         }

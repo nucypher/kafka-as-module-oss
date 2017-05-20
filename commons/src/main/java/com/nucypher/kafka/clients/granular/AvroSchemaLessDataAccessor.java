@@ -1,6 +1,5 @@
 package com.nucypher.kafka.clients.granular;
 
-import com.nucypher.kafka.Pair;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.AvroUtils;
 import com.nucypher.kafka.utils.GranularUtils;
@@ -11,7 +10,6 @@ import io.confluent.kafka.serializers.AbstractKafkaAvroSerDe;
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
-import lombok.AllArgsConstructor;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -25,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -40,7 +39,8 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
     private KafkaAvroDeserializer deserializer;
     private KafkaAvroSerializer serializer;
     private boolean isKey;
-    private Map<Pair<String, Schema>, Schema> schemasCache = new HashMap<>(); //TODO change to external library
+    //TODO change to external library
+    private Map<SchemaCacheKey, Schema> schemasCache = new HashMap<>();
 
     private GenericRecord currentRecord;
     private List<String> encrypted;
@@ -48,6 +48,30 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
     private String topic;
     private Schema initialSchema;
     private Schema encryptedSchema;
+
+    private static class SchemaCacheKey {
+        private String subject;
+        private Schema schema;
+
+        public SchemaCacheKey(String subject, Schema schema) {
+            this.subject = subject;
+            this.schema = schema;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SchemaCacheKey that = (SchemaCacheKey) o;
+            return Objects.equals(subject, that.subject) &&
+                    Objects.equals(schema, that.schema);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(subject, schema);
+        }
+    }
 
     public AvroSchemaLessDataAccessor() {
 
@@ -106,7 +130,7 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
 
     private Schema getEncryptedSchema(String topic, Schema schema) {
         String subject = getSubjectName(topic, isKey);
-        Pair<String, Schema> pair = new Pair<>(subject, schema);
+        SchemaCacheKey pair = new SchemaCacheKey(subject, schema);
         if (schemasCache.containsKey(pair)) {
             return schemasCache.get(pair);
         }
@@ -353,13 +377,24 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
     }
 
     @SuppressWarnings("unchecked")
-    @AllArgsConstructor
     private static class FieldObject {
         private Object parent;
         private Object childObject;
         private Integer index;
         private String fieldName;
         private Schema childSchema;
+
+        public FieldObject(Object parent,
+                           Object childObject,
+                           Integer index,
+                           String fieldName,
+                           Schema childSchema) {
+            this.parent = parent;
+            this.childObject = childObject;
+            this.index = index;
+            this.fieldName = fieldName;
+            this.childSchema = childSchema;
+        }
 
         public Object getValue() {
             return childObject;

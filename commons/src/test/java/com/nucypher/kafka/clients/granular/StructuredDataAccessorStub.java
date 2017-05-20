@@ -1,6 +1,5 @@
 package com.nucypher.kafka.clients.granular;
 
-import com.nucypher.kafka.Pair;
 import com.nucypher.kafka.utils.StringUtils;
 import org.bouncycastle.util.encoders.Hex;
 
@@ -17,8 +16,18 @@ import java.util.Set;
  */
 public class StructuredDataAccessorStub implements StructuredDataAccessor {
 
-    private List<Pair<Map<String, String>, List<String>>> lines;
+    private List<Line> lines;
     private int index = -1;
+
+    private static class Line {
+        private Map<String, String> fields;
+        private List<String> encrypted;
+
+        public Line(Map<String, String> fields, List<String> encrypted) {
+            this.fields = fields;
+            this.encrypted = encrypted;
+        }
+    }
 
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
@@ -49,7 +58,7 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
             String field = parts[1].replaceAll("[\"\\s{}\\[\\]]", "");
             Collections.addAll(encrypted, field.split(","));
         }
-        lines.add(new Pair<>(fields, encrypted));
+        lines.add(new Line(fields, encrypted));
     }
 
     @Override
@@ -65,9 +74,9 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
     }
 
     private String serialize(int index) {
-        Pair<Map<String, String>, List<String>> line = lines.get(index);
-        Map<String, String> fields = line.getFirst();
-        List<String> encrypted = line.getLast();
+        Line line = lines.get(index);
+        Map<String, String> fields = line.fields;
+        List<String> encrypted = line.encrypted;
         StringBuilder builder = new StringBuilder("{");
         int i = 0;
         for (Map.Entry<String, String> entry : fields.entrySet()) {
@@ -101,13 +110,13 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
 
     @Override
     public Set<String> getAllFields() {
-        Map<String, String> fields = lines.get(0).getFirst();
+        Map<String, String> fields = lines.get(0).fields;
         return fields.keySet();
     }
 
     @Override
     public Map<String, byte[]> getAllEncrypted() {
-        List<String> encrypted = lines.get(index).getLast();
+        List<String> encrypted = lines.get(index).encrypted;
         Map<String, byte[]> result = new HashMap<>();
         for (String field : encrypted) {
             result.put(field, Hex.decode(getUnencrypted(field)));
@@ -117,24 +126,24 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
 
     @Override
     public byte[] getUnencrypted(String field) {
-        Map<String, String> fields = lines.get(index).getFirst();
+        Map<String, String> fields = lines.get(index).fields;
         return fields.get(field).getBytes();
     }
 
     @Override
     public void addEncrypted(String field, byte[] data) {
-        List<String> encrypted = lines.get(index).getLast();
+        List<String> encrypted = lines.get(index).encrypted;
         if (!encrypted.contains(field)) {
             encrypted.add(field);
         }
-        Map<String, String> fields = lines.get(index).getFirst();
+        Map<String, String> fields = lines.get(index).fields;
         fields.put(field, Hex.toHexString(data));
     }
 
     @Override
     public void addUnencrypted(String field, byte[] data) {
-        Map<String, String> fields = lines.get(index).getFirst();
-        List<String> encrypted = lines.get(index).getLast();
+        Map<String, String> fields = lines.get(index).fields;
+        List<String> encrypted = lines.get(index).encrypted;
         fields.put(field, new String(data));
         if (encrypted.contains(field)) {
             encrypted.remove(field);
