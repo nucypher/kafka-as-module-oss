@@ -14,7 +14,7 @@ After successful building run next command:
 The archives will be located at admin/build/distributions, kafka/core/build/distributions and examples/build/distributions folders.  
 Unpack admin, kafka and examples archives.  
 Export environment variables ADMIN_HOME, KAFKA_HOME and EXAMPLES_HOME for result folders.  
-Export environment variable KEYS_HOME for folder with keys.  
+Export environment variable KEYS_DIR for folder with keys.  
 
 # Administration console
 Administrator console is used to manage channels (topics) and re-encryption keys for Kafka broker.  
