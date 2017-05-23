@@ -1,8 +1,5 @@
 package com.nucypher.kafka.utils;
 
-import com.google.common.io.BaseEncoding;
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericContainer;
@@ -13,49 +10,11 @@ import org.apache.avro.reflect.ReflectData;
  */
 public class ByteUtils {
 
-    private static final BaseEncoding HEX = BaseEncoding.base16();
-
     /**
-     * Invert byte
+     * Serialize any valid Object into byte array
      *
-     * @return - inverted byte
-     */
-    public static byte invert(byte _byte) {
-        return (byte) ~_byte;
-    }
-
-    /**
-     * Invert byte array
-     *
-     * @param _array -
-     * @return - inverted byte array
-     */
-    public static byte[] invert(byte[] _array) {
-        if (_array == null) {
-            return null;
-        }
-        byte[] _inv = new byte[_array.length];
-        for (int i = 0; i < _array.length; i++) {
-            _inv[i] = (byte) ~_array[i];
-        }
-        return _inv;
-    }
-
-    /**
-     * byte[] to HEX String
-     *
-     * @param bytes - array of bytes byte[]
-     * @return - HEX String representation
-     */
-    public static String hex(byte[] bytes) {
-        return HEX.encode(bytes);
-    }
-
-    /**
-     * Serialize any valid Object into byte[]
-     *
-     * @param value - any object
-     * @return - byte[]
+     * @param value any object
+     * @return byte array
      */
     public static byte[] serialize(final Object value) {
         Schema schema;
@@ -70,9 +29,10 @@ public class ByteUtils {
     }
 
     /**
-     * Deserialize byte[] into Object
+     * Deserialize byte array into Object
      *
      * @param bytes bytes
+     * @param clazz class of object
      * @return deserialized object
      */
     @SuppressWarnings("unchecked")

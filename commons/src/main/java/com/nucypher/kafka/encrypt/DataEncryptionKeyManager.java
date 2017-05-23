@@ -1,6 +1,9 @@
 package com.nucypher.kafka.encrypt;
 
 import avro.shaded.com.google.common.primitives.Ints;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.primitives.Bytes;
 import com.nucypher.crypto.bbs98.WrapperBBS98;
 import com.nucypher.crypto.elgamal.WrapperElGamalPRE;
@@ -36,6 +39,8 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Class for DEK encryption, decryption and re-encryption
@@ -43,6 +48,7 @@ import java.util.Map;
 public class DataEncryptionKeyManager {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KeyUtils.class);
+    private static final int DEFAULT_CACHE_SIZE = 200000; //TODO configuration
 
     static {
         DefaultProvider.initializeProvider();
@@ -53,9 +59,96 @@ public class DataEncryptionKeyManager {
     private SecureRandom secureRandom;
     private Map<String, Key> deks = new HashMap<>();
     private PrivateKey privateKey;
-    //TODO edek-dek cache
-    //TODO dek-edek cache
-    //TODO edek-edek cache
+    private final LoadingCache<EncryptionCacheKey, byte[]> encryptionCache = CacheBuilder.newBuilder()
+            .maximumSize(DEFAULT_CACHE_SIZE)
+            .build(new CacheLoader<EncryptionCacheKey, byte[]>() {
+                public byte[] load(EncryptionCacheKey key) {
+                    return encryptDEKOperation(key.dek);
+                }
+            });
+    private final LoadingCache<ReEncryptionCacheKey, byte[]> reEncryptionCache = CacheBuilder.newBuilder()
+            .maximumSize(DEFAULT_CACHE_SIZE)
+            .build(new CacheLoader<ReEncryptionCacheKey, byte[]>() {
+                public byte[] load(ReEncryptionCacheKey key) {
+                    return reEncryptEDEKOperation(key.edek, key.reKey);
+                }
+            });
+    private final LoadingCache<DecryptionCacheKey, Key> decryptionCache = CacheBuilder.newBuilder()
+            .maximumSize(DEFAULT_CACHE_SIZE)
+            .build(new CacheLoader<DecryptionCacheKey, Key>() {
+                public Key load(DecryptionCacheKey key) {
+                    return decryptEDEKOperation(key.edek, key.isComplex);
+                }
+            });
+
+    private static class EncryptionCacheKey {
+        private byte[] dek;
+
+        public EncryptionCacheKey(byte[] dek) {
+            this.dek = dek;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EncryptionCacheKey that = (EncryptionCacheKey) o;
+            return Arrays.equals(dek, that.dek);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(dek);
+        }
+    }
+
+    private static class ReEncryptionCacheKey {
+        private byte[] edek;
+        private WrapperReEncryptionKey reKey;
+
+        public ReEncryptionCacheKey(byte[] edek, WrapperReEncryptionKey reKey) {
+            this.edek = edek;
+            this.reKey = reKey;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ReEncryptionCacheKey that = (ReEncryptionCacheKey) o;
+            return Arrays.equals(edek, that.edek) &&
+                    Objects.equals(reKey, that.reKey);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(Arrays.hashCode(edek), reKey);
+        }
+    }
+
+    private static class DecryptionCacheKey {
+        private byte[] edek;
+        private boolean isComplex;
+
+        public DecryptionCacheKey(byte[] edek, boolean isComplex) {
+            this.edek = edek;
+            this.isComplex = isComplex;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DecryptionCacheKey that = (DecryptionCacheKey) o;
+            return isComplex == that.isComplex &&
+                    Arrays.equals(edek, that.edek);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(Arrays.hashCode(edek), isComplex);
+        }
+    }
 
     /**
      * Constructor for re-encryption
@@ -131,14 +224,24 @@ public class DataEncryptionKeyManager {
      * @return EDEK
      */
     public byte[] encryptDEK(Key dek) {
+        byte[] dekBytes = dek.getEncoded();
+        try {
+            return encryptionCache.get(new EncryptionCacheKey(dekBytes));
+        } catch (ExecutionException e) {
+            throw new CommonException(e.getCause());
+        }
+    }
+
+    private byte[] encryptDEKOperation(byte[] dek) {
+        LOGGER.debug("DEK encryption");
         ECKey ecKey = (ECKey) publicKey;
         switch (algorithm) {
             case BBS98:
                 return new WrapperBBS98(ecKey.getParameters(), secureRandom)
-                        .encrypt(publicKey, dek.getEncoded());
+                        .encrypt(publicKey, dek);
             case ELGAMAL:
                 return new WrapperElGamalPRE(ecKey.getParameters(), secureRandom)
-                        .encrypt(publicKey, dek.getEncoded());
+                        .encrypt(publicKey, dek);
             default:
                 throw new CommonException(
                         "Algorithm %s is not available for DEK encryption",
@@ -170,6 +273,14 @@ public class DataEncryptionKeyManager {
      * @return DEK
      */
     public Key decryptEDEK(byte[] bytes, boolean isComplex) {
+        try {
+            return decryptionCache.get(new DecryptionCacheKey(bytes, isComplex));
+        } catch (ExecutionException e) {
+            throw new CommonException(e.getCause());
+        }
+    }
+
+    public Key decryptEDEKOperation(byte[] bytes, boolean isComplex) {
         ECPrivateKey ecPrivateKey = (ECPrivateKey) privateKey;
         byte[] key;
         try {
@@ -192,7 +303,7 @@ public class DataEncryptionKeyManager {
             EncryptionAlgorithm algorithm, ECPrivateKey ecPrivateKey, byte[] bytes)
             throws NoSuchAlgorithmException, InvalidKeyException,
             InvalidKeySpecException, NoSuchProviderException {
-        LOGGER.debug("Simple decryption");
+        LOGGER.debug("EDEK simple decryption");
         switch (algorithm) {
             case BBS98:
                 WrapperBBS98 wrapperBBS98 = new WrapperBBS98(
@@ -213,7 +324,7 @@ public class DataEncryptionKeyManager {
             EncryptionAlgorithm algorithm, ECPrivateKey ecPrivateKey, byte[] bytes)
             throws NoSuchAlgorithmException, InvalidKeyException,
             NoSuchProviderException, InvalidKeySpecException, IOException {
-        LOGGER.debug("Complex decryption");
+        LOGGER.debug("EDEK complex decryption");
         byte[] data = Arrays.copyOfRange(bytes, 0, Ints.BYTES);
         int encryptedRandomKeyLength = Ints.fromByteArray(data);
         //TODO check this for other algorithms
@@ -267,6 +378,14 @@ public class DataEncryptionKeyManager {
      * @return re-encrypted EDEK
      */
     public byte[] reEncryptEDEK(byte[] edek, WrapperReEncryptionKey reKey) {
+        try {
+            return reEncryptionCache.get(new ReEncryptionCacheKey(edek, reKey));
+        } catch (ExecutionException e) {
+            throw new CommonException(e.getCause());
+        }
+    }
+
+    public byte[] reEncryptEDEKOperation(byte[] edek, WrapperReEncryptionKey reKey) {
         if (reKey.isSimple()) {
             return reEncryptEDEK(
                     reKey.getAlgorithm(),
@@ -289,7 +408,7 @@ public class DataEncryptionKeyManager {
             BigInteger reEncryptionKey,
             ECParameterSpec ecSpec,
             byte[] edek) {
-        LOGGER.debug("Simple re-encryption");
+        LOGGER.debug("EDEK simple re-encryption");
         switch (algorithm) {
             case BBS98:
                 WrapperBBS98 wrapperBBS98 = new WrapperBBS98(ecSpec, null);
@@ -312,7 +431,7 @@ public class DataEncryptionKeyManager {
             byte[] edek,
             byte[] encryptedRandomKey,
             Integer randomKeyLength) {
-        LOGGER.debug("Complex re-encryption");
+        LOGGER.debug("EDEK complex re-encryption");
         //EDEK re-encryption from 'private from' to 'random private' key
         byte[] reEncrypted = reEncryptEDEK(algorithm, reEncryptionKey, ecSpec, edek);
         byte[] encryptedRandomKeyLength = Ints.toByteArray(encryptedRandomKey.length);
