@@ -1,5 +1,7 @@
 package com.nucypher.kafka.encrypt;
 
+import avro.shaded.com.google.common.primitives.Ints;
+import com.google.common.primitives.Bytes;
 import com.nucypher.crypto.bbs98.WrapperBBS98;
 import com.nucypher.crypto.elgamal.WrapperElGamalPRE;
 import com.nucypher.kafka.Constants;
@@ -9,13 +11,19 @@ import com.nucypher.kafka.utils.AESKeyGenerators;
 import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import com.nucypher.kafka.utils.KeyUtils;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
+import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECKey;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.spec.ECParameterSpec;
+import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -25,6 +33,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -146,25 +155,11 @@ public class DataEncryptionKeyManager {
     public Key getDEK(String seed) {
         Key dek = deks.get(seed);
         if (dek == null) {
-            int size = getKeySize();
+            int size = KeyUtils.getMessageLength(((ECPublicKey) publicKey).getParameters());
             dek = AESKeyGenerators.generateDEK(size);
             deks.put(seed, dek);
         }
         return dek;
-    }
-
-    private int getKeySize() {
-        ECParameterSpec ecParameterSpec = ((ECPublicKey) publicKey).getParameters();
-        switch (algorithm) {
-            case BBS98:
-                return WrapperBBS98.getMessageLength(ecParameterSpec);
-            case ELGAMAL:
-                return WrapperElGamalPRE.getMessageLength(ecParameterSpec);
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for calculating key size",
-                        algorithm);
-        }
     }
 
     /**
@@ -186,7 +181,8 @@ public class DataEncryptionKeyManager {
         } catch (NoSuchAlgorithmException |
                 InvalidKeyException |
                 NoSuchProviderException |
-                InvalidKeySpecException e) {
+                InvalidKeySpecException |
+                IOException e) {
             throw new CommonException(e);
         }
         return AESKeyGenerators.create(key, Constants.SYMMETRIC_ALGORITHM);
@@ -216,14 +212,51 @@ public class DataEncryptionKeyManager {
     private static byte[] decryptReEncryptionEDEK(
             EncryptionAlgorithm algorithm, ECPrivateKey ecPrivateKey, byte[] bytes)
             throws NoSuchAlgorithmException, InvalidKeyException,
-            NoSuchProviderException, InvalidKeySpecException {
+            NoSuchProviderException, InvalidKeySpecException, IOException {
         LOGGER.debug("Complex decryption");
-        switch (algorithm) {
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for EDEK decryption",
-                        algorithm);
+        byte[] data = Arrays.copyOfRange(bytes, 0, Ints.BYTES);
+        int encryptedRandomKeyLength = Ints.fromByteArray(data);
+        //TODO check this for other algorithms
+//        int randomKeyLength = bytes[1] - Byte.MIN_VALUE;
+        byte[] encryptedRandomKey = new byte[encryptedRandomKeyLength];
+        byte[] reEncrypted = new byte[bytes.length - encryptedRandomKeyLength - Ints.BYTES];
+        System.arraycopy(bytes, Ints.BYTES,
+                encryptedRandomKey, 0, encryptedRandomKeyLength);
+        System.arraycopy(bytes, Ints.BYTES + encryptedRandomKeyLength,
+                reEncrypted, 0, reEncrypted.length);
+
+        ECParameterSpec ecPec = ecPrivateKey.getParameters();
+
+        BigInteger randomKeyData =
+                decryptRandomKey(algorithm, ecPrivateKey, encryptedRandomKey);
+        ECPrivateKeySpec ecPrivateKeySpec = new ECPrivateKeySpec(randomKeyData, ecPec);
+        ECPrivateKey randomKey = new BCECPrivateKey(ecPrivateKey.getAlgorithm(),
+                ecPrivateKeySpec, BouncyCastleProvider.CONFIGURATION);
+        return decryptEDEK(algorithm, randomKey, reEncrypted);
+    }
+
+    private static BigInteger decryptRandomKey(
+            EncryptionAlgorithm algorithm,
+            ECPrivateKey ecPrivateKey,
+            byte[] encryptedRandomKey)
+            throws IOException, NoSuchAlgorithmException, InvalidKeyException,
+            InvalidKeySpecException, NoSuchProviderException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(encryptedRandomKey);
+        byte[] lengthBytes = new byte[Ints.BYTES];
+        byte[] encryptedLengthBytes = new byte[Ints.BYTES];
+        while (inputStream.available() > 0) {
+            inputStream.read(lengthBytes);
+            inputStream.read(encryptedLengthBytes);
+            int length = Ints.fromByteArray(lengthBytes);
+            int encryptedLength = Ints.fromByteArray(encryptedLengthBytes);
+            byte[] data = new byte[encryptedLength];
+            inputStream.read(data);
+            byte[] decrypted = decryptEDEK(algorithm, ecPrivateKey, data);
+            outputStream.write(decrypted, decrypted.length - length, length);
         }
+
+        return new BigInteger(outputStream.toByteArray());
     }
 
     /**
@@ -272,7 +305,6 @@ public class DataEncryptionKeyManager {
         }
     }
 
-    //TODO add ElGamal and BBS98
     private byte[] reEncryptEDEK(
             EncryptionAlgorithm algorithm,
             BigInteger reEncryptionKey,
@@ -281,12 +313,10 @@ public class DataEncryptionKeyManager {
             byte[] encryptedRandomKey,
             Integer randomKeyLength) {
         LOGGER.debug("Complex re-encryption");
-        switch (algorithm) {
-            default:
-                throw new CommonException(
-                        "Algorithm %s is not available for complex EDEK re-encryption",
-                        algorithm);
-        }
+        //EDEK re-encryption from 'private from' to 'random private' key
+        byte[] reEncrypted = reEncryptEDEK(algorithm, reEncryptionKey, ecSpec, edek);
+        byte[] encryptedRandomKeyLength = Ints.toByteArray(encryptedRandomKey.length);
+        return Bytes.concat(encryptedRandomKeyLength, encryptedRandomKey, reEncrypted);
     }
 
 }

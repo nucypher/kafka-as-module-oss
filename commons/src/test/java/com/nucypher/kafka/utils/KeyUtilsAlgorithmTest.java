@@ -17,6 +17,8 @@ import java.util.Random;
 import java.util.UUID;
 
 import static com.nucypher.kafka.utils.KeyType.DEFAULT;
+import static com.nucypher.kafka.utils.KeyType.PRIVATE_AND_PUBLIC;
+import static com.nucypher.kafka.utils.KeyType.PUBLIC;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -130,6 +132,41 @@ public final class KeyUtilsAlgorithmTest {
         assertEquals(ecSpec, wrapper.getECParameterSpec());
         assertArrayEquals(encryptedRandomKey, wrapper.getEncryptedRandomKey());
         assertEquals(Integer.valueOf(randomKeyLength), wrapper.getRandomKeyLength());
+    }
+
+    /**
+     * Test generating complex re-encryption key
+     */
+    @Test
+    public void testGenerateComplexReKey() throws Exception {
+        String privateFrom = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
+        String privateTo = getClass().getResource("/private-key-prime256v1-2.pem").getPath();
+        String publicTo = getClass().getResource("/public-key-prime256v1-2.pem").getPath();
+        testGenerateComplexReKey(algorithm, privateFrom, publicTo, privateTo, "prime256v1");
+
+        privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
+        privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
+        publicTo = getClass().getResource("/public-key-secp521r1-2.pem").getPath();
+        testGenerateComplexReKey(algorithm, privateFrom, publicTo, privateTo, "secp521r1");
+    }
+
+    private void testGenerateComplexReKey(
+            EncryptionAlgorithm algorithm,
+            String from,
+            String publicTo,
+            String privateTo,
+            String curve)
+            throws Exception {
+        KeyUtilsTest.testGenerateComplexReKey(
+                algorithm, from, publicTo, privateTo, null, DEFAULT);
+        KeyUtilsTest.testGenerateComplexReKey(
+                algorithm, from, publicTo, privateTo, curve, DEFAULT);
+        KeyUtilsTest.testGenerateComplexReKey(
+                algorithm, from, privateTo, privateTo, null, PUBLIC);
+        KeyUtilsTest.testGenerateComplexReKey(
+                algorithm, from, publicTo, privateTo, null, PRIVATE_AND_PUBLIC);
+        KeyUtilsTest.testGenerateComplexReKey(
+                algorithm, from, publicTo, privateTo, null, PUBLIC);
     }
 
 }

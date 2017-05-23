@@ -2,7 +2,9 @@ package com.nucypher.kafka.utils;
 
 import com.nucypher.crypto.bbs98.WrapperBBS98;
 import com.nucypher.crypto.elgamal.WrapperElGamalPRE;
+import com.nucypher.kafka.Constants;
 import com.nucypher.kafka.TestConstants;
+import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
@@ -140,17 +142,17 @@ public final class KeyUtilsTest {
         testGenerateSimpleReKey(algorithm, from, to, null);
     }
 
-//    /**
-//     * Test generating re-encryption key with wrong key type
-//     */
-//    @Test
-//    public void testGenerateReKeyWithWrongKeyType2() throws Exception {
-//        expectedException.expect(CommonException.class);
-//        expectedException.expectMessage(StringContains.containsString("must contain private key"));
-//        String from = getClass().getResource("/public-key-secp521r1-2.pem").getPath();
-//        String to = getClass().getResource("/public-key-secp521r1-2.pem").getPath();
-//        testGenerateComplexReKey(algorithm, from, to, null, null, PRIVATE);
-//    }
+    /**
+     * Test generating re-encryption key with wrong key type
+     */
+    @Test
+    public void testGenerateReKeyWithWrongKeyType2() throws Exception {
+        expectedException.expect(CommonException.class);
+        expectedException.expectMessage(StringContains.containsString("must contain private key"));
+        String from = getClass().getResource("/public-key-secp521r1-2.pem").getPath();
+        String to = getClass().getResource("/public-key-secp521r1-2.pem").getPath();
+        testGenerateComplexReKey(algorithm, from, to, null, null, PRIVATE);
+    }
 
     /**
      * Test generating simple re-encryption key
@@ -176,26 +178,21 @@ public final class KeyUtilsTest {
 
         KeyPair keyPairFrom = KeyUtils.getECKeyPairFromPEM(from);
         KeyPair keyPairTo = KeyUtils.getECKeyPairFromPEM(to);
-        ECParameterSpec ecSpec = getEcParameterSpec(curve, reKey, keyPairFrom);
+        ECParameterSpec ecSpec = getECParameterSpec(curve, reKey, keyPairFrom);
 
-        byte[] byteContent;
+        byte[] byteContent = new byte[KeyUtils.getMessageLength(ecSpec)];
+        random.nextBytes(byteContent);
         byte[] encrypted;
         byte[] reEncrypted;
         byte[] decrypted;
         switch (algorithm) {
             case BBS98:
-                byteContent = new byte[WrapperBBS98.getMessageLength(ecSpec)];
-                random.nextBytes(byteContent);
-
                 WrapperBBS98 wrapperBBS98 = new WrapperBBS98(ecSpec, new SecureRandom());
                 encrypted = wrapperBBS98.encrypt(keyPairFrom.getPublic(), byteContent);
                 reEncrypted = wrapperBBS98.reencrypt(reKey.getReEncryptionKey(), encrypted);
                 decrypted = wrapperBBS98.decrypt(keyPairTo.getPrivate(), reEncrypted);
                 break;
             case ELGAMAL:
-                byteContent = new byte[WrapperElGamalPRE.getMessageLength(ecSpec)];
-                random.nextBytes(byteContent);
-
                 WrapperElGamalPRE wrapperElGamal =
                         new WrapperElGamalPRE(ecSpec, new SecureRandom());
                 encrypted = wrapperElGamal.encrypt(keyPairFrom.getPublic(), byteContent);
@@ -208,37 +205,41 @@ public final class KeyUtilsTest {
         assertArrayEquals(byteContent, decrypted);
     }
 
-//    /**
-//     * Test generating complex re-encryption key
-//     *
-//     * @param algorithm encryption algorithm
-//     * @param from      key from
-//     * @param to        key to
-//     * @param privateTo private key to
-//     * @param curve     curve name
-//     * @param keyType   key type
-//     */
-//    public static void testGenerateComplexReKey(
-//            EncryptionAlgorithm algorithm,
-//            String from,
-//            String to,
-//            String privateTo,
-//            String curve,
-//            KeyType keyType)
-//            throws Exception {
-//        WrapperReEncryptionKey reKey = KeyUtils.generateReEncryptionKey(
-//                algorithm, from, to, keyType, curve);
-//
-//        KeyPair keyPairFrom = KeyUtils.getECKeyPairFromPEM(from);
-//        KeyPair keyPairTo = KeyUtils.getECKeyPairFromPEM(privateTo);
-//        ECParameterSpec ecSpec = getEcParameterSpec(curve, reKey, keyPairFrom);
-//
-//        switch (algorithm) {
-//            default:
-//                //TODO complete
-//                throw new CommonException();
-//        }
-//    }
+    /**
+     * Test generating complex re-encryption key
+     *
+     * @param algorithm encryption algorithm
+     * @param from      key from
+     * @param to        key to
+     * @param privateTo private key to
+     * @param curve     curve name
+     * @param keyType   key type
+     */
+    public static void testGenerateComplexReKey(
+            EncryptionAlgorithm algorithm,
+            String from,
+            String to,
+            String privateTo,
+            String curve,
+            KeyType keyType)
+            throws Exception {
+        WrapperReEncryptionKey reKey = KeyUtils.generateReEncryptionKey(
+                algorithm, from, to, keyType, curve);
+
+        KeyPair keyPairFrom = KeyUtils.getECKeyPairFromPEM(from);
+        KeyPair keyPairTo = KeyUtils.getECKeyPairFromPEM(privateTo);
+        ECParameterSpec ecSpec = getECParameterSpec(curve, reKey, keyPairFrom);
+
+        byte[] byteContent = new byte[KeyUtils.getMessageLength(ecSpec)];
+        random.nextBytes(byteContent);
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                algorithm, keyPairTo.getPrivate(), keyPairFrom.getPublic());
+        byte[] encrypted = keyManager.encryptDEK(
+                AESKeyGenerators.create(byteContent, Constants.SYMMETRIC_ALGORITHM));
+        byte[] reEncrypted = keyManager.reEncryptEDEK(encrypted, reKey);
+        byte[] decrypted = keyManager.decryptEDEK(reEncrypted, true).getEncoded();
+        assertArrayEquals(byteContent, decrypted);
+    }
 
     /**
      * Get EC parameters
@@ -248,7 +249,7 @@ public final class KeyUtilsTest {
      * @param keyPairFrom key pair
      * @return EC parameters
      */
-    public static ECParameterSpec getEcParameterSpec(
+    public static ECParameterSpec getECParameterSpec(
             String curve, WrapperReEncryptionKey reKey, KeyPair keyPairFrom) {
         ECParameterSpec ecSpec;
         if (curve != null) {

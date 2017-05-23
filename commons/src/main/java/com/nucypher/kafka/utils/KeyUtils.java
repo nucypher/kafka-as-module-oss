@@ -1,12 +1,15 @@
 package com.nucypher.kafka.utils;
 
+import com.google.common.primitives.Ints;
 import com.nucypher.crypto.bbs98.BBS98ReEncryptionKeyGenerator;
 import com.nucypher.crypto.bbs98.BBS98ReKeyGenParameterSpec;
 import com.nucypher.crypto.bbs98.WrapperBBS98;
 import com.nucypher.crypto.elgamal.ElGamalReEncryptionKeyGenerator;
 import com.nucypher.crypto.elgamal.WrapperElGamalPRE;
 import com.nucypher.crypto.interfaces.ReEncryptionKey;
+import com.nucypher.kafka.Constants;
 import com.nucypher.kafka.DefaultProvider;
+import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
 import org.bouncycastle.asn1.ASN1OutputStream;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -14,6 +17,7 @@ import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x9.X9ECParameters;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.interfaces.ECKey;
+import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
@@ -36,6 +40,7 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 
 /**
  * Class for working with keys
@@ -199,6 +204,7 @@ public class KeyUtils {
      * @throws NoSuchProviderException  if problem with generating complex key
      * @throws CommonException          if files does not contain right keys or parameters
      */
+    //TODO move to DataEncryptionKeyManager
     public static WrapperReEncryptionKey generateReEncryptionKey(
             EncryptionAlgorithm algorithm,
             KeyPair keyPairFrom,
@@ -214,7 +220,20 @@ public class KeyUtils {
             throw new CommonException("First key pair must contain private key");
         }
         ECParameterSpec ecSpec = getECParameterSpec(curve, keyPairFrom, keyPairTo);
+        return generateReEncryptionKey(algorithm, keyPairFrom, keyPairTo, keyTypeTo, ecSpec);
+    }
 
+    private static WrapperReEncryptionKey generateReEncryptionKey(
+            EncryptionAlgorithm algorithm,
+            KeyPair keyPairFrom,
+            KeyPair keyPairTo,
+            KeyType keyTypeTo,
+            ECParameterSpec ecSpec)
+            throws IOException,
+            NoSuchAlgorithmException,
+            InvalidKeyException,
+            NoSuchProviderException,
+            CommonException {
         WrapperReEncryptionKey result;
         switch (keyTypeTo) {
             case DEFAULT:
@@ -252,14 +271,52 @@ public class KeyUtils {
             KeyPair keyPairFrom,
             KeyPair keyPairTo,
             ECParameterSpec ecSpec)
-            throws NoSuchAlgorithmException, InvalidKeyException, NoSuchProviderException {
+            throws NoSuchAlgorithmException, InvalidKeyException,
+            NoSuchProviderException, IOException {
         LOGGER.debug("Used private and public keys for generating re-encryption key");
-        switch (algorithm) {
-            default:
-                throw new CommonException("Algorithm %s is not available for " +
-                        "generating re-encryption key using private and public keys",
-                        algorithm);
+        //generating random EC private key
+        KeyPair keyPair = KeyUtils.generateECKeyPair(algorithm, ecSpec).getKeyPair();
+        ECPrivateKey ecPrivateKeyRandom = (ECPrivateKey) keyPair.getPrivate();
+        //generating 'private from -> random private' re-encryption key
+        WrapperReEncryptionKey reEncryptionKey = KeyUtils.generateReEncryptionKey(
+                algorithm, keyPairFrom, keyPair, KeyType.PRIVATE, ecSpec);
+        byte[] randomKeyData = ecPrivateKeyRandom.getD().toByteArray();
+        //random key encryption using 'public from' key
+        byte[] encryptedRandomKey =
+                encryptRandomKey(algorithm, keyPairTo, ecSpec, randomKeyData);
+
+        return new WrapperReEncryptionKey(
+                algorithm,
+                reEncryptionKey.getReEncryptionKey(),
+                ecSpec,
+                encryptedRandomKey,
+                randomKeyData.length);
+    }
+
+    private static byte[] encryptRandomKey(EncryptionAlgorithm algorithm,
+                                           KeyPair keyPairTo,
+                                           ECParameterSpec ecSpec,
+                                           byte[] randomKeyData) throws IOException {
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                algorithm, keyPairTo.getPublic());
+        int keySize = getMessageLength(ecSpec);
+        int partsCount = (int) Math.ceil(((double) randomKeyData.length) / keySize);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        for (int i = 0; i < partsCount; i++) {
+            int index = (i + 1) * keySize;
+            if (index > randomKeyData.length) {
+                index = randomKeyData.length;
+            }
+            byte[] part = Arrays.copyOfRange(
+                    randomKeyData, i * keySize, index);
+            byte[] encryptedPart = keyManager.encryptDEK(
+                    AESKeyGenerators.create(part, Constants.SYMMETRIC_ALGORITHM));
+            outputStream.write(Ints.toByteArray(part.length));
+            outputStream.write(Ints.toByteArray(encryptedPart.length));
+            outputStream.write(encryptedPart);
         }
+
+        return outputStream.toByteArray();
     }
 
     private static WrapperReEncryptionKey getSimpleReEncryptionKey(
@@ -337,7 +394,22 @@ public class KeyUtils {
     public static KeyPairHolder generateECKeyPair(
             EncryptionAlgorithm algorithm, String curve)
             throws IOException {
-        final ECParameterSpec ecParameterSpec = ECNamedCurveTable.getParameterSpec(curve);
+        ECParameterSpec ecParameterSpec = ECNamedCurveTable.getParameterSpec(curve);
+        return generateECKeyPair(algorithm, ecParameterSpec);
+    }
+
+    /**
+     * Generate EC key pair
+     *
+     * @param algorithm       encryption algorithm
+     * @param ecParameterSpec ec parameters
+     * @return {@link KeyPair} and {@link ECParameterSpec}
+     * @throws IOException if problem with serializing data
+     */
+    //TODO move to DataEncryptionKeyManager
+    public static KeyPairHolder generateECKeyPair(
+            EncryptionAlgorithm algorithm, ECParameterSpec ecParameterSpec)
+            throws IOException {
         KeyPair keyPair;
         switch (algorithm) {
             case BBS98:
@@ -451,4 +523,21 @@ public class KeyUtils {
         writeKeyPairToPEM(filename, keyPair, ecSpec, keyType);
     }
 
+    /**
+     * Get encrypted message length. Available only for P-256 and P-521 curves
+     *
+     * @param ecSpec {@link ECParameterSpec}
+     * @return message length
+     */
+    public static int getMessageLength(ECParameterSpec ecSpec) {
+        switch (ecSpec.getN().bitLength()) {
+            case 256:
+                return 16;
+            case 521:
+                return 32;
+            //TODO maybe change to calculating
+            default:
+                throw new IllegalArgumentException("Available only for P-256 and P-521 curves");
+        }
+    }
 }

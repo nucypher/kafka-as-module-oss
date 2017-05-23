@@ -45,58 +45,6 @@ public class DataEncryptionKeyManagerTest {
         return Arrays.asList(data);
     }
 
-//    /**
-//     * Test generating complex re-encryption key
-//     */
-//    @Test
-//    //TODO move to KeyUtilsAlgorithmTest when ready
-//    public void testGenerateComplexReKey() throws Exception {
-//        String privateFrom = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
-//        String privateTo = getClass().getResource("/private-key-prime256v1-2.pem").getPath();
-//        String publicTo = getClass().getResource("/public-key-prime256v1-2.pem").getPath();
-//        testGenerateComplexReKey(algorithm, privateFrom, publicTo, privateTo, "prime256v1");
-//
-//        privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
-//        privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
-//        publicTo = getClass().getResource("/public-key-secp521r1-2.pem").getPath();
-//        testGenerateComplexReKey(algorithm, privateFrom, publicTo, privateTo, "secp521r1");
-//    }
-
-//    private void testGenerateComplexReKey(
-//            EncryptionAlgorithm algorithm,
-//            String from,
-//            String publicTo,
-//            String privateTo,
-//            String curve)
-//            throws Exception {
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, null, DEFAULT);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, curve, DEFAULT);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, privateTo, privateTo, null, PUBLIC);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, null, PRIVATE_AND_PUBLIC);
-//        KeyUtilsTest.testGenerateComplexReKey(
-//                algorithm, from, publicTo, privateTo, null, PUBLIC);
-//    }
-
-
-//    /**
-//     * Test complex re-encrypting EDEK
-//     */
-//    @Test
-//    //TODO move to KeyUtilsAlgorithmTest when ready
-//    public void testComplexReEncryptEDEK() throws Exception {
-//        String privateFrom = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
-//        String privateTo = getClass().getResource("/private-key-prime256v1-2.pem").getPath();
-//        testReEncryptEDEK(algorithm, privateFrom, privateTo, true);
-//
-//        privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
-//        privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
-//        testReEncryptEDEK(algorithm, privateFrom, privateTo, true);
-//    }
-
     /**
      * Test re-encrypting EDEK
      *
@@ -105,7 +53,7 @@ public class DataEncryptionKeyManagerTest {
      * @param to        key to
      * @param isComplex is complex re-encryption
      */
-    public static void testReEncryptEDEK(EncryptionAlgorithm algorithm,
+    private static void testReEncryptEDEK(EncryptionAlgorithm algorithm,
                                          String from,
                                          String to,
                                          boolean isComplex) throws Exception {
@@ -138,4 +86,17 @@ public class DataEncryptionKeyManagerTest {
         testReEncryptEDEK(algorithm, privateFrom, privateTo, false);
     }
 
+    /**
+     * Test complex re-encrypting EDEK
+     */
+    @Test
+    public void testComplexReEncryptEDEK() throws Exception {
+        String privateFrom = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
+        String privateTo = getClass().getResource("/private-key-prime256v1-2.pem").getPath();
+        testReEncryptEDEK(algorithm, privateFrom, privateTo, true);
+
+        privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
+        privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
+        testReEncryptEDEK(algorithm, privateFrom, privateTo, true);
+    }
 }

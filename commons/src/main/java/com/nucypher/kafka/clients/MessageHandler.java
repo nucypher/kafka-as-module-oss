@@ -120,6 +120,7 @@ public class MessageHandler {
         byte[] edek = header.getMap().get(KEY_EDEK);
         edek = keyManager.reEncryptEDEK(edek, reKey);
         header.add(KEY_EDEK, edek);
+        header.add(KEY_IS_COMPLEX, ByteUtils.serialize(reKey.isComplex()));
         return message.serialize();
     }
 
