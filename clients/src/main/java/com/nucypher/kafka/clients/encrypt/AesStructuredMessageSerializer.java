@@ -1,14 +1,19 @@
 package com.nucypher.kafka.clients.encrypt;
 
+import com.nucypher.kafka.cipher.AesGcmCipher;
+import com.nucypher.kafka.clients.MessageHandler;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessor;
 import com.nucypher.kafka.clients.granular.StructuredMessageHandler;
+import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.serialization.Serializer;
 
+import java.security.KeyPair;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +112,41 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
         this(serializer, algorithm, publicKey, format.getAccessorClass(), fields);
     }
 
+    /**
+     * Common constructor
+     *
+     * @param serializer              Kafka serializer
+     * @param algorithm               encryption algorithm
+     * @param keyPair                 EC key pair
+     * @param dataAccessorClass       data accessor class
+     * @param fields                  collection of fields to encryption
+     * @param useDerivedKeys          use derived keys
+     * @param encryptionCacheCapacity encryption cache capacity
+     */
+    public AesStructuredMessageSerializer(
+            Serializer<T> serializer,
+            EncryptionAlgorithm algorithm,
+            KeyPair keyPair,
+            Class<? extends StructuredDataAccessor> dataAccessorClass,
+            Set<String> fields,
+            boolean useDerivedKeys,
+            Integer encryptionCacheCapacity) {
+        this.serializer = serializer;
+        SecureRandom secureRandom = new SecureRandom();
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                algorithm, keyPair, secureRandom, useDerivedKeys, encryptionCacheCapacity);
+        AesGcmCipher cipher = new AesGcmCipher();
+        messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
+        try {
+            accessor = dataAccessorClass.newInstance();
+        } catch (InstantiationException | IllegalAccessException e) {
+            throw new CommonException(e);
+        }
+        structuredMessageHandler = new StructuredMessageHandler(messageHandler);
+        this.fields = fields;
+        isConfigured = true;
+    }
+
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
         if (!isConfigured) {
@@ -134,5 +174,17 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
         }
 
         return structuredMessageHandler.encrypt(topic, serialized, accessor, fields);
+    }
+
+    @Override
+    protected DataEncryptionKeyManager getKeyManager(AbstractConfig config,
+                                                     KeyPair keyPair,
+                                                     Integer cacheCapacity,
+                                                     EncryptionAlgorithm algorithm,
+                                                     SecureRandom secureRandom) {
+        boolean useDerivedKeys = config.getBoolean(
+                AesStructuredMessageSerializerConfig.USE_DERIVED_KEYS_CONFIG);
+        return new DataEncryptionKeyManager(
+                algorithm, keyPair, secureRandom, useDerivedKeys, cacheCapacity);
     }
 }

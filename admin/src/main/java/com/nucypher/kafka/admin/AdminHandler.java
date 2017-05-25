@@ -1,6 +1,5 @@
 package com.nucypher.kafka.admin;
 
-import com.nucypher.kafka.DefaultProvider;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessor;
 import com.nucypher.kafka.errors.CommonException;
@@ -139,8 +138,8 @@ public class AdminHandler {
                     algorithm, masterKey, clientKey, curve, clientType, keyType));
         } else {
             type = EncryptionType.GRANULAR;
-            reKeys = getReEncryptionKey(
-                    algorithm, masterKey, clientKey, curve, clientType, keyType, fields);
+            reKeys = getReEncryptionKey(algorithm, channel, masterKey, clientKey,
+                    curve, clientType, keyType, fields);
         }
 
         if (type != EncryptionType.GRANULAR || clazz != null) {
@@ -172,6 +171,7 @@ public class AdminHandler {
 
     private Map<String, WrapperReEncryptionKey> getReEncryptionKey(
             EncryptionAlgorithm algorithm,
+            String channel,
             String masterKey,
             String clientKey,
             String curve,
@@ -189,7 +189,8 @@ public class AdminHandler {
         }
 
         for (String field : fields) {
-            PrivateKey key = GranularUtils.deriveKeyFromData(masterKey, field);
+            String fieldName = GranularUtils.getChannelFieldName(channel, field);
+            PrivateKey key = GranularUtils.deriveKeyFromData(masterKey, fieldName);
             KeyPair masterKeyPair = new KeyPair(null, key);
             WrapperReEncryptionKey reEncryptionKey;
             switch (clientType) {

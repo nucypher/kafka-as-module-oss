@@ -18,6 +18,8 @@ import org.junit.rules.ExpectedException;
 import java.io.IOException;
 import java.security.KeyPair;
 import java.security.SecureRandom;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.util.Random;
 
 import static com.nucypher.kafka.utils.KeyType.DEFAULT;
@@ -233,7 +235,7 @@ public final class KeyUtilsTest {
         byte[] byteContent = new byte[KeyUtils.getMessageLength(ecSpec)];
         random.nextBytes(byteContent);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
-                algorithm, keyPairTo.getPrivate(), keyPairFrom.getPublic());
+                algorithm, keyPairTo.getPrivate(), keyPairFrom.getPublic(), false);
         byte[] encrypted = keyManager.encryptDEK(
                 AESKeyGenerators.create(byteContent, Constants.SYMMETRIC_ALGORITHM));
         byte[] reEncrypted = keyManager.reEncryptEDEK(encrypted, reKey);
@@ -261,4 +263,29 @@ public final class KeyUtilsTest {
         return ecSpec;
     }
 
+    /**
+     * Test generating public key from private key
+     */
+    @Test
+    public void testGeneratePublicKey() throws Exception {
+        String filename = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
+        testGeneratePublicKey(filename);
+        filename = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
+        testGeneratePublicKey(filename);
+    }
+
+    private static void testGeneratePublicKey(String filename) throws Exception {
+        ECPrivateKey privateKey = (ECPrivateKey) KeyUtils.getECKeyPairFromPEM(filename).getPrivate();
+        ECParameterSpec ecSpec = privateKey.getParameters();
+        PublicKey publicKey = KeyUtils.generatePublicKey(privateKey);
+
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                TestConstants.ENCRYPTION_ALGORITHM, privateKey, publicKey, false);
+        byte[] byteContent = new byte[KeyUtils.getMessageLength(ecSpec)];
+        random.nextBytes(byteContent);
+        byte[] encrypted = keyManager.encryptDEK(
+                AESKeyGenerators.create(byteContent, Constants.SYMMETRIC_ALGORITHM));
+        byte[] decrypted = keyManager.decryptEDEK(encrypted, false).getEncoded();
+        assertArrayEquals(byteContent, decrypted);
+    }
 }

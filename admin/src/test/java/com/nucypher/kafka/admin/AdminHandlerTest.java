@@ -118,6 +118,11 @@ public class AdminHandlerTest {
         when(KeyUtils.getECKeyPairFromPEM(anyString()))
                 .thenReturn(new KeyPair(null, inputPrivateKey));
         when(GranularUtils.deriveKeyFromData(anyString(), any())).thenReturn(privateKey);
+        when(GranularUtils.getChannelFieldName(anyString(), anyString()))
+                .then(invocation -> {
+                    Object[] args = invocation.getArguments();
+                    return args[0] + "-" + args[1];
+                });
 
         handler = new AdminHandler(zooKeeperHandler);
     }
@@ -179,9 +184,9 @@ public class AdminHandlerTest {
                 null);
 
         verifyStatic(times(1));
-        GranularUtils.deriveKeyFromData(eq(masterKey), eq("a.c"));
+        GranularUtils.deriveKeyFromData(eq(masterKey), eq(channel + "-a.c"));
         verifyStatic(times(1));
-        GranularUtils.deriveKeyFromData(eq(masterKey), eq("b"));
+        GranularUtils.deriveKeyFromData(eq(masterKey), eq(channel + "-b"));
         verifyStatic(times(1));
         KeyUtils.getECKeyPairFromPEM(eq(clientKey));
         verifyStatic(times(2));

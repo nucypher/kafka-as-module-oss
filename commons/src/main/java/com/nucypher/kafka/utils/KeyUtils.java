@@ -15,10 +15,16 @@ import org.bouncycastle.asn1.ASN1OutputStream;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x9.X9ECParameters;
+import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPublicKey;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.interfaces.ECKey;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.spec.ECParameterSpec;
+import org.bouncycastle.jce.spec.ECPrivateKeySpec;
+import org.bouncycastle.jce.spec.ECPublicKeySpec;
+import org.bouncycastle.math.ec.ECPoint;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
@@ -39,6 +45,8 @@ import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
@@ -298,7 +306,7 @@ public class KeyUtils {
                                            ECParameterSpec ecSpec,
                                            byte[] randomKeyData) throws IOException {
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
-                algorithm, keyPairTo.getPublic());
+                algorithm, keyPairTo.getPublic(), new SecureRandom());
         int keySize = getMessageLength(ecSpec);
         int partsCount = (int) Math.ceil(((double) randomKeyData.length) / keySize);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -402,7 +410,7 @@ public class KeyUtils {
      * Generate EC key pair
      *
      * @param algorithm       encryption algorithm
-     * @param ecParameterSpec ec parameters
+     * @param ecParameterSpec EC parameters
      * @return {@link KeyPair} and {@link ECParameterSpec}
      * @throws IOException if problem with serializing data
      */
@@ -539,5 +547,51 @@ public class KeyUtils {
             default:
                 throw new IllegalArgumentException("Available only for P-256 and P-521 curves");
         }
+    }
+
+    /**
+     * Generate public key from private key
+     *
+     * @param privateKey EC private key
+     * @return public key
+     */
+    public static PublicKey generatePublicKey(PrivateKey privateKey) {
+        ECPrivateKey ecPrivateKey = (ECPrivateKey) privateKey;
+        ECParameterSpec ecParameterSpec = ecPrivateKey.getParameters();
+
+        ECPoint q = ecParameterSpec.getG().multiply(ecPrivateKey.getD());
+        return getPublicKey(privateKey.getAlgorithm(), q, ecParameterSpec);
+    }
+
+    /**
+     * Get instance of EC {@link PrivateKey}
+     *
+     * @param algorithm       algorithm
+     * @param d               D value
+     * @param ecParameterSpec EC parameters
+     * @return EC {@link PrivateKey}
+     */
+    public static PrivateKey getPrivateKey(String algorithm,
+                                           BigInteger d,
+                                           ECParameterSpec ecParameterSpec) {
+        ECPrivateKeySpec ecPrivateKeySpec = new ECPrivateKeySpec(d, ecParameterSpec);
+        return new BCECPrivateKey(algorithm,
+                ecPrivateKeySpec, BouncyCastleProvider.CONFIGURATION);
+    }
+
+    /**
+     * Get instance of EC {@link PublicKey}
+     *
+     * @param algorithm       algorithm
+     * @param q               Q point
+     * @param ecParameterSpec EC parameters
+     * @return EC {@link PublicKey}
+     */
+    public static PublicKey getPublicKey(String algorithm,
+                                         ECPoint q,
+                                         ECParameterSpec ecParameterSpec) {
+        ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(q, ecParameterSpec);
+        return new BCECPublicKey(algorithm,
+                publicKeySpec, BouncyCastleProvider.CONFIGURATION);
     }
 }

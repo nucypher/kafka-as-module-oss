@@ -72,7 +72,7 @@ public class MessageHandler {
      */
     public byte[] encrypt(String topic, byte[] data) {
         Key dek = keyManager.getDEK(topic);
-        byte[] edek = keyManager.encryptDEK(dek);
+        byte[] edek = keyManager.encryptDEK(dek, topic);
 
         byte[] iv = new byte[dek.getEncoded().length];
         secureRandom.nextBytes(iv);

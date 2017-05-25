@@ -43,7 +43,7 @@ class MessageHandlerSpec extends Specification {
         header.map.get(KEY_IV) != null
         header.map.get(KEY_EDEK) == key.getEncoded()
         1 * keyManager.getDEK(topic) >> key
-        1 * keyManager.encryptDEK(key) >> key.getEncoded()
+        1 * keyManager.encryptDEK(key, topic) >> key.getEncoded()
         1 * cipher.encrypt(data, key, _) >> data
     }
 

@@ -10,6 +10,7 @@ import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.serialization.Serializer;
 
 import java.io.IOException;
+import java.security.KeyPair;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.util.Map;
@@ -58,25 +59,49 @@ public class AesMessageSerializer<T> implements Serializer<T> {
         isConfigured = true;
     }
 
+
+    /**
+     * Common constructor
+     *
+     * @param serializer Kafka serializer
+     * @param algorithm  encryption algorithm
+     * @param publicKey  public key
+     */
+    public AesMessageSerializer(Serializer<T> serializer,
+                                EncryptionAlgorithm algorithm,
+                                PublicKey publicKey,
+                                Integer encryptionCacheCapacity) {
+        this.serializer = serializer;
+        SecureRandom secureRandom = new SecureRandom();
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                algorithm, publicKey, secureRandom, encryptionCacheCapacity);
+        AesGcmCipher cipher = new AesGcmCipher();
+        messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
+        isConfigured = true;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
         if (!isConfigured) {
             AbstractConfig config = new AesMessageSerializerConfig(configs);
+
             String path = config.getString(
                     AesMessageSerializerConfig.PUBLIC_KEY_CONFIG);
-            PublicKey publicKey;
+            KeyPair keyPair;
             try {
-                publicKey = KeyUtils.getECKeyPairFromPEM(path).getPublic();
+                keyPair = KeyUtils.getECKeyPairFromPEM(path);
             } catch (IOException e) {
                 throw new CommonException(e);
             }
+
+            Integer cacheCapacity = config.getInt(
+                    AesMessageSerializerConfig.CACHE_ENCRYPTION_CAPACITY_CONFIG);
             EncryptionAlgorithm algorithm = EncryptionAlgorithm.valueOf(
                     config.getString(AesMessageSerializerConfig.ALGORITHM_CONFIG));
-
             SecureRandom secureRandom = new SecureRandom();
             DataEncryptionKeyManager keyManager =
-                    new DataEncryptionKeyManager(algorithm, publicKey, secureRandom);
+                    getKeyManager(config, keyPair, cacheCapacity, algorithm, secureRandom);
             AesGcmCipher cipher = new AesGcmCipher();
             messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
 
@@ -92,6 +117,25 @@ public class AesMessageSerializer<T> implements Serializer<T> {
         }
         serializer.configure(configs, isKey);
         isConfigured = true;
+    }
+
+    /**
+     * Get key manager
+     *
+     * @param config        configuration
+     * @param keyPair       key pair
+     * @param cacheCapacity cache capacity
+     * @param algorithm     algorithm
+     * @param secureRandom  secure random
+     * @return key manager
+     */
+    protected DataEncryptionKeyManager getKeyManager(AbstractConfig config,
+                                                     KeyPair keyPair,
+                                                     Integer cacheCapacity,
+                                                     EncryptionAlgorithm algorithm,
+                                                     SecureRandom secureRandom) {
+        return new DataEncryptionKeyManager(
+                algorithm, keyPair.getPublic(), secureRandom, cacheCapacity);
     }
 
     @Override

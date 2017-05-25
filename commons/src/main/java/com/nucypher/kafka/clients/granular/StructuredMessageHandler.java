@@ -1,6 +1,7 @@
 package com.nucypher.kafka.clients.granular;
 
 import com.nucypher.kafka.clients.MessageHandler;
+import com.nucypher.kafka.utils.GranularUtils;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +20,6 @@ import java.util.Set;
 public class StructuredMessageHandler implements Serializable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StructuredMessageHandler.class);
-    private static final String SEPARATOR = "-";
 
     private MessageHandler messageHandler;
     //TODO store EDEKs once before message
@@ -54,17 +54,12 @@ public class StructuredMessageHandler implements Serializable {
             for (String field : fields) {
                 byte[] fieldData = dataAccessor.getUnencrypted(field);
                 fieldData = messageHandler.encrypt(
-                        getFieldName(topic, field), fieldData);
+                        GranularUtils.getChannelFieldName(topic, field), fieldData);
                 dataAccessor.addEncrypted(field, fieldData);
             }
         }
         return dataAccessor.serialize();
     }
-
-    private static String getFieldName(String topic, String field) {
-        return topic + SEPARATOR + field;
-    }
-
 
     /**
      * Decrypt byte array

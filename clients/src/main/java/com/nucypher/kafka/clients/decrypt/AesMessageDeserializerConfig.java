@@ -23,6 +23,10 @@ public class AesMessageDeserializerConfig extends MessageSerDeConfig {
     public static final String KEY_DESERIALIZER_CLASS_DOC =
             ConsumerConfig.KEY_DESERIALIZER_CLASS_DOC;
 
+    public static final String CACHE_DECRYPTION_CAPACITY_CONFIG = "cache.decryption.capacity";
+    public static final String CACHE_DECRYPTION_CAPACITY_DOC = "Decryption cache capacity";
+    public static final int CACHE_DECRYPTION_CAPACITY_DEFAULT = 200000;
+
     private static final ConfigDef CONFIG;
 
     static {
@@ -40,7 +44,12 @@ public class AesMessageDeserializerConfig extends MessageSerDeConfig {
                         ConfigDef.Type.CLASS,
                         ByteArrayDeserializer.class,
                         ConfigDef.Importance.HIGH,
-                        KEY_DESERIALIZER_CLASS_DOC);
+                        KEY_DESERIALIZER_CLASS_DOC)
+                .define(CACHE_DECRYPTION_CAPACITY_CONFIG,
+                        ConfigDef.Type.INT,
+                        CACHE_DECRYPTION_CAPACITY_DEFAULT,
+                        ConfigDef.Importance.LOW,
+                        CACHE_DECRYPTION_CAPACITY_DOC);
     }
 
     public static ConfigDef baseConfigDef() {

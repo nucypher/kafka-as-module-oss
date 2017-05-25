@@ -20,6 +20,7 @@ import static com.nucypher.kafka.utils.StringUtils.isBlank;
 public class GranularUtils {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GranularUtils.class);
+    private static final String SEPARATOR = "-";
 
     /**
      * Separator for fields
@@ -133,5 +134,16 @@ public class GranularUtils {
         PrivateKey key = SubkeyGenerator.deriveKey(privateKey, data);
         LOGGER.debug("Private keys were generated from {} and {}", privateKeyPath, data);
         return key;
+    }
+
+    /**
+     * Get field name with channel
+     *
+     * @param channel channel
+     * @param field   field
+     * @return field name
+     */
+    public static String getChannelFieldName(String channel, String field) {
+        return channel + SEPARATOR + field;
     }
 }

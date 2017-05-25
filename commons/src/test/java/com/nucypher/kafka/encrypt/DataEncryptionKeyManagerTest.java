@@ -2,11 +2,14 @@ package com.nucypher.kafka.encrypt;
 
 import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import com.nucypher.kafka.utils.KeyUtils;
+import com.nucypher.kafka.utils.GranularUtils;
+import com.nucypher.kafka.utils.SubkeyGenerator;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.security.PrivateKey;
 import java.security.Key;
 import java.security.KeyPair;
 import java.util.Arrays;
@@ -54,16 +57,16 @@ public class DataEncryptionKeyManagerTest {
      * @param isComplex is complex re-encryption
      */
     private static void testReEncryptEDEK(EncryptionAlgorithm algorithm,
-                                         String from,
-                                         String to,
-                                         boolean isComplex) throws Exception {
+                                          String from,
+                                          String to,
+                                          boolean isComplex) throws Exception {
         WrapperReEncryptionKey reKey = KeyUtils.generateReEncryptionKey(
                 algorithm, from, to, !isComplex ? PRIVATE : PUBLIC, null);
         KeyPair keyPairFrom = KeyUtils.getECKeyPairFromPEM(from);
         KeyPair keyPairTo = KeyUtils.getECKeyPairFromPEM(to);
 
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
-                algorithm, keyPairTo.getPrivate(), keyPairFrom.getPublic());
+                algorithm, keyPairTo.getPrivate(), keyPairFrom.getPublic(), false);
         Key key = keyManager.getDEK("");
 
         byte[] encrypted = keyManager.encryptDEK(key);
@@ -98,5 +101,32 @@ public class DataEncryptionKeyManagerTest {
         privateFrom = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
         privateTo = getClass().getResource("/private-key-secp521r1-2.pem").getPath();
         testReEncryptEDEK(algorithm, privateFrom, privateTo, true);
+    }
+
+    /**
+     * Test encrypting using derived key
+     */
+    @Test
+    public void testEncryptEDEKUsingDerivedKey() throws Exception {
+        String privateKey = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
+        testEncryptEDEKUsingDerivedKey(algorithm, privateKey);
+        privateKey = getClass().getResource("/private-key-secp521r1-1.pem").getPath();
+        testEncryptEDEKUsingDerivedKey(algorithm, privateKey);
+    }
+
+    private static void testEncryptEDEKUsingDerivedKey(EncryptionAlgorithm algorithm,
+                                                       String privateKeyPath) throws Exception {
+        String data = "data";
+        KeyPair keyPair = KeyUtils.getECKeyPairFromPEM(privateKeyPath);
+        PrivateKey privateKey = SubkeyGenerator.deriveKey(keyPair.getPrivate(), data);
+
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                algorithm, keyPair.getPrivate(), keyPair.getPublic(), true);
+        Key key = keyManager.getDEK("");
+        byte[] encrypted = keyManager.encryptDEK(key, data);
+
+        keyManager = new DataEncryptionKeyManager(algorithm, privateKey);
+        Key decrypted = keyManager.decryptEDEK(encrypted, false);
+        assertEquals(key, decrypted);
     }
 }

@@ -13,14 +13,11 @@ import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.AESKeyGenerators;
 import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import com.nucypher.kafka.utils.KeyUtils;
+import com.nucypher.kafka.utils.SubkeyGenerator;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
-import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
-import org.bouncycastle.jce.interfaces.ECKey;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.spec.ECParameterSpec;
-import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +27,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
@@ -48,7 +46,7 @@ import java.util.concurrent.ExecutionException;
 public class DataEncryptionKeyManager {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KeyUtils.class);
-    private static final int DEFAULT_CACHE_SIZE = 200000; //TODO configuration
+    private static final int DEFAULT_CACHE_SIZE = 200000;
 
     static {
         DefaultProvider.initializeProvider();
@@ -56,36 +54,27 @@ public class DataEncryptionKeyManager {
 
     private EncryptionAlgorithm algorithm;
     private PublicKey publicKey;
+    private Map<String, PublicKey> publicKeyMap = new HashMap<>();
     private SecureRandom secureRandom;
+    //TODO DEKs changing
     private Map<String, Key> deks = new HashMap<>();
+    private boolean useDerivedKeys;
     private PrivateKey privateKey;
-    private final LoadingCache<EncryptionCacheKey, byte[]> encryptionCache = CacheBuilder.newBuilder()
-            .maximumSize(DEFAULT_CACHE_SIZE)
-            .build(new CacheLoader<EncryptionCacheKey, byte[]>() {
-                public byte[] load(EncryptionCacheKey key) {
-                    return encryptDEKOperation(key.dek);
-                }
-            });
-    private final LoadingCache<ReEncryptionCacheKey, byte[]> reEncryptionCache = CacheBuilder.newBuilder()
-            .maximumSize(DEFAULT_CACHE_SIZE)
-            .build(new CacheLoader<ReEncryptionCacheKey, byte[]>() {
-                public byte[] load(ReEncryptionCacheKey key) {
-                    return reEncryptEDEKOperation(key.edek, key.reKey);
-                }
-            });
-    private final LoadingCache<DecryptionCacheKey, Key> decryptionCache = CacheBuilder.newBuilder()
-            .maximumSize(DEFAULT_CACHE_SIZE)
-            .build(new CacheLoader<DecryptionCacheKey, Key>() {
-                public Key load(DecryptionCacheKey key) {
-                    return decryptEDEKOperation(key.edek, key.isComplex);
-                }
-            });
+
+    private Integer encryptionCacheCapacity;
+    private Integer reEncryptionCacheCapacity;
+    private Integer decryptionCacheCapacity;
+    private LoadingCache<EncryptionCacheKey, byte[]> encryptionCache;
+    private LoadingCache<ReEncryptionCacheKey, byte[]> reEncryptionCache;
+    private LoadingCache<DecryptionCacheKey, Key> decryptionCache;
 
     private static class EncryptionCacheKey {
         private byte[] dek;
+        private String data;
 
-        public EncryptionCacheKey(byte[] dek) {
+        public EncryptionCacheKey(byte[] dek, String data) {
             this.dek = dek;
+            this.data = data;
         }
 
         @Override
@@ -93,12 +82,13 @@ public class DataEncryptionKeyManager {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             EncryptionCacheKey that = (EncryptionCacheKey) o;
-            return Arrays.equals(dek, that.dek);
+            return Arrays.equals(dek, that.dek) &&
+                    Objects.equals(data, that.data);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(dek);
+            return Objects.hash(Arrays.hashCode(dek), data);
         }
     }
 
@@ -158,13 +148,12 @@ public class DataEncryptionKeyManager {
     }
 
     /**
-     * Constructor for encryption
+     * Constructor for re-encryption
      *
-     * @param algorithm encryption algorithm
-     * @param publicKey EC public key
+     * @param reEncryptionCacheCapacity re-encryption cache capacity
      */
-    public DataEncryptionKeyManager(EncryptionAlgorithm algorithm, PublicKey publicKey) {
-        this(algorithm, publicKey, new SecureRandom());
+    public DataEncryptionKeyManager(Integer reEncryptionCacheCapacity) {
+        this.reEncryptionCacheCapacity = reEncryptionCacheCapacity;
     }
 
     /**
@@ -177,7 +166,42 @@ public class DataEncryptionKeyManager {
     public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
                                     PublicKey publicKey,
                                     SecureRandom secureRandom) {
-        this(algorithm, null, publicKey, secureRandom);
+        this(algorithm, null, publicKey, secureRandom, false,
+                null, null, null);
+    }
+
+    /**
+     * Constructor for encryption
+     *
+     * @param algorithm               encryption algorithm
+     * @param publicKey               EC public key
+     * @param secureRandom            secure random
+     * @param encryptionCacheCapacity encryption cache capacity
+     */
+    public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
+                                    PublicKey publicKey,
+                                    SecureRandom secureRandom,
+                                    Integer encryptionCacheCapacity) {
+        this(algorithm, null, publicKey, secureRandom, false,
+                encryptionCacheCapacity, null, null);
+    }
+
+    /**
+     * Constructor for encryption
+     *
+     * @param algorithm               encryption algorithm
+     * @param keyPair                 key pair
+     * @param secureRandom            secure random
+     * @param useDerivedKeys          use derived keys
+     * @param encryptionCacheCapacity encryption cache capacity
+     */
+    public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
+                                    KeyPair keyPair,
+                                    SecureRandom secureRandom,
+                                    boolean useDerivedKeys,
+                                    Integer encryptionCacheCapacity) {
+        this(algorithm, keyPair.getPrivate(), keyPair.getPublic(), secureRandom, useDerivedKeys,
+                encryptionCacheCapacity, null, null);
     }
 
     /**
@@ -187,34 +211,118 @@ public class DataEncryptionKeyManager {
      * @param privateKey EC private key
      */
     public DataEncryptionKeyManager(EncryptionAlgorithm algorithm, PrivateKey privateKey) {
-        this(algorithm, privateKey, null, null);
+        this(algorithm, privateKey, null);
     }
 
     /**
-     * @param algorithm    encryption algorithm
-     * @param privateKey   EC private key
-     * @param publicKey    EC public key
-     * @param secureRandom secure random
+     * Constructor for decryption
+     *
+     * @param algorithm               encryption algorithm
+     * @param privateKey              EC private key
+     * @param decryptionCacheCapacity decryption cache capacity
+     */
+    public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
+                                    PrivateKey privateKey,
+                                    Integer decryptionCacheCapacity) {
+        this(algorithm, privateKey, null, null, false,
+                null, null, decryptionCacheCapacity);
+    }
+
+    /**
+     * Constructor for tests
+     *
+     * @param algorithm      encryption algorithm
+     * @param privateKey     EC private key
+     * @param publicKey      EC public key
+     * @param useDerivedKeys use derived keys
      */
     public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
                                     PrivateKey privateKey,
                                     PublicKey publicKey,
-                                    SecureRandom secureRandom) {
+                                    boolean useDerivedKeys) {
+        this(algorithm, privateKey, publicKey, new SecureRandom(), useDerivedKeys,
+                null, null, null);
+    }
+
+    /**
+     * Common constructor
+     *
+     * @param algorithm                 encryption algorithm
+     * @param privateKey                EC private key
+     * @param publicKey                 EC public key
+     * @param secureRandom              secure random
+     * @param useDerivedKeys            use derived keys
+     * @param encryptionCacheCapacity   encryption cache capacity
+     * @param reEncryptionCacheCapacity re-encryption cache capacity
+     * @param decryptionCacheCapacity   decryption cache capacity
+     */
+    public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
+                                    PrivateKey privateKey,
+                                    PublicKey publicKey,
+                                    SecureRandom secureRandom,
+                                    boolean useDerivedKeys,
+                                    Integer encryptionCacheCapacity,
+                                    Integer reEncryptionCacheCapacity,
+                                    Integer decryptionCacheCapacity) {
         this.privateKey = privateKey;
         this.algorithm = algorithm;
         this.publicKey = publicKey;
         this.secureRandom = secureRandom;
+        this.useDerivedKeys = useDerivedKeys;
+        this.encryptionCacheCapacity = encryptionCacheCapacity;
+        this.reEncryptionCacheCapacity = reEncryptionCacheCapacity;
+        this.decryptionCacheCapacity = decryptionCacheCapacity;
     }
 
-    /**
-     * @param algorithm  encryption algorithm
-     * @param privateKey EC private key
-     * @param publicKey  EC public key
-     */
-    public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
-                                    PrivateKey privateKey,
-                                    PublicKey publicKey) {
-        this(algorithm, privateKey, publicKey, new SecureRandom());
+    private void initializeEncryptionCache() {
+        if (encryptionCache != null) {
+            return;
+        }
+        if (encryptionCacheCapacity == null) {
+            encryptionCacheCapacity = DEFAULT_CACHE_SIZE;
+        }
+        encryptionCache = CacheBuilder.newBuilder()
+                .maximumSize(encryptionCacheCapacity)
+                .build(new CacheLoader<EncryptionCacheKey, byte[]>() {
+                    public byte[] load(EncryptionCacheKey key) {
+                        return encryptDEKOperation(key.dek, key.data);
+                    }
+                });
+        LOGGER.debug("Encryption cache was initialized using capacity {}", encryptionCacheCapacity);
+    }
+
+    private void initializeReEncryptionCache() {
+        if (reEncryptionCache != null) {
+            return;
+        }
+        if (reEncryptionCacheCapacity == null) {
+            reEncryptionCacheCapacity = DEFAULT_CACHE_SIZE;
+        }
+        reEncryptionCache = CacheBuilder.newBuilder()
+                .maximumSize(DEFAULT_CACHE_SIZE)
+                .build(new CacheLoader<ReEncryptionCacheKey, byte[]>() {
+                    public byte[] load(ReEncryptionCacheKey key) {
+                        return reEncryptEDEKOperation(key.edek, key.reKey);
+                    }
+                });
+        LOGGER.debug("Re-encryption cache was initialized using capacity {}", reEncryptionCacheCapacity);
+    }
+
+    private void initializeDecryptionCache() {
+        if (decryptionCache != null) {
+            return;
+        }
+        if (decryptionCacheCapacity == null) {
+            decryptionCacheCapacity = DEFAULT_CACHE_SIZE;
+        }
+        decryptionCache = CacheBuilder.newBuilder()
+                .maximumSize(DEFAULT_CACHE_SIZE)
+                .build(new CacheLoader<DecryptionCacheKey, Key>() {
+                    public Key load(DecryptionCacheKey key) {
+                        return decryptEDEKOperation(key.edek, key.isComplex);
+                    }
+                });
+        LOGGER.debug("Decryption cache was initialized using capacity {}", decryptionCacheCapacity);
     }
 
     /**
@@ -224,24 +332,40 @@ public class DataEncryptionKeyManager {
      * @return EDEK
      */
     public byte[] encryptDEK(Key dek) {
+        return encryptDEK(dek, null);
+    }
+
+    /**
+     * Encrypt DEK
+     *
+     * @param dek  Data Encryption Key
+     * @param data data for encryption used for derivation key
+     * @return EDEK
+     */
+    public byte[] encryptDEK(Key dek, String data) {
+        initializeEncryptionCache();
         byte[] dekBytes = dek.getEncoded();
         try {
-            return encryptionCache.get(new EncryptionCacheKey(dekBytes));
+            return encryptionCache.get(new EncryptionCacheKey(dekBytes, data));
         } catch (ExecutionException e) {
             throw new CommonException(e.getCause());
         }
     }
 
-    private byte[] encryptDEKOperation(byte[] dek) {
+    private byte[] encryptDEKOperation(byte[] dek, String data) {
         LOGGER.debug("DEK encryption");
-        ECKey ecKey = (ECKey) publicKey;
+        ECPublicKey ecPublicKey = (ECPublicKey) publicKey;
+        if (useDerivedKeys) {
+            ecPublicKey = getDerivedKey(data);
+        }
+        ECParameterSpec ecParameterSpec = ecPublicKey.getParameters();
         switch (algorithm) {
             case BBS98:
-                return new WrapperBBS98(ecKey.getParameters(), secureRandom)
-                        .encrypt(publicKey, dek);
+                return new WrapperBBS98(ecParameterSpec, secureRandom)
+                        .encrypt(ecPublicKey, dek);
             case ELGAMAL:
-                return new WrapperElGamalPRE(ecKey.getParameters(), secureRandom)
-                        .encrypt(publicKey, dek);
+                return new WrapperElGamalPRE(ecParameterSpec, secureRandom)
+                        .encrypt(ecPublicKey, dek);
             default:
                 throw new CommonException(
                         "Algorithm %s is not available for DEK encryption",
@@ -249,18 +373,28 @@ public class DataEncryptionKeyManager {
         }
     }
 
+    private ECPublicKey getDerivedKey(String data) {
+        ECPublicKey ecPublicKey = (ECPublicKey) publicKeyMap.get(data);
+        if (ecPublicKey == null) {
+            PrivateKey derivedKey = SubkeyGenerator.deriveKey(privateKey, data);
+            ecPublicKey = (ECPublicKey) KeyUtils.generatePublicKey(derivedKey);
+            publicKeyMap.put(data, ecPublicKey);
+        }
+        return ecPublicKey;
+    }
+
     /**
      * Get or generate DEK
      *
-     * @param seed seed for DEK
+     * @param data data for getting or generating DEK
      * @return Data Encryption Key
      */
-    public Key getDEK(String seed) {
-        Key dek = deks.get(seed);
+    public Key getDEK(String data) {
+        Key dek = deks.get(data);
         if (dek == null) {
             int size = KeyUtils.getMessageLength(((ECPublicKey) publicKey).getParameters());
             dek = AESKeyGenerators.generateDEK(size);
-            deks.put(seed, dek);
+            deks.put(data, dek);
         }
         return dek;
     }
@@ -273,6 +407,7 @@ public class DataEncryptionKeyManager {
      * @return DEK
      */
     public Key decryptEDEK(byte[] bytes, boolean isComplex) {
+        initializeDecryptionCache();
         try {
             return decryptionCache.get(new DecryptionCacheKey(bytes, isComplex));
         } catch (ExecutionException e) {
@@ -336,13 +471,12 @@ public class DataEncryptionKeyManager {
         System.arraycopy(bytes, Ints.BYTES + encryptedRandomKeyLength,
                 reEncrypted, 0, reEncrypted.length);
 
-        ECParameterSpec ecPec = ecPrivateKey.getParameters();
+        ECParameterSpec ecSpec = ecPrivateKey.getParameters();
 
         BigInteger randomKeyData =
                 decryptRandomKey(algorithm, ecPrivateKey, encryptedRandomKey);
-        ECPrivateKeySpec ecPrivateKeySpec = new ECPrivateKeySpec(randomKeyData, ecPec);
-        ECPrivateKey randomKey = new BCECPrivateKey(ecPrivateKey.getAlgorithm(),
-                ecPrivateKeySpec, BouncyCastleProvider.CONFIGURATION);
+        ECPrivateKey randomKey = (ECPrivateKey) KeyUtils.getPrivateKey(
+                ecPrivateKey.getAlgorithm(), randomKeyData, ecSpec);
         return decryptEDEK(algorithm, randomKey, reEncrypted);
     }
 
@@ -378,6 +512,7 @@ public class DataEncryptionKeyManager {
      * @return re-encrypted EDEK
      */
     public byte[] reEncryptEDEK(byte[] edek, WrapperReEncryptionKey reKey) {
+        initializeReEncryptionCache();
         try {
             return reEncryptionCache.get(new ReEncryptionCacheKey(edek, reKey));
         } catch (ExecutionException e) {

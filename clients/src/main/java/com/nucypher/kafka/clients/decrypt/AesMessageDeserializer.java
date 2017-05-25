@@ -48,8 +48,24 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
     public AesMessageDeserializer(Deserializer<T> deserializer,
                                   EncryptionAlgorithm algorithm,
                                   PrivateKey privateKey) {
+        this(deserializer, algorithm, privateKey, null);
+    }
+
+    /**
+     * Common constructor
+     *
+     * @param deserializer            Kafka deserializer
+     * @param algorithm               encryption algorithm
+     * @param privateKey              EC private key
+     * @param decryptionCacheCapacity decryption cache capacity
+     */
+    public AesMessageDeserializer(Deserializer<T> deserializer,
+                                  EncryptionAlgorithm algorithm,
+                                  PrivateKey privateKey,
+                                  Integer decryptionCacheCapacity) {
         this.deserializer = deserializer;
-        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(algorithm, privateKey);
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                algorithm, privateKey, decryptionCacheCapacity);
         AesGcmCipher cipher = new AesGcmCipher();
         messageHandler = new MessageHandler(cipher, keyManager, null);
         isConfigured = true;
@@ -60,6 +76,7 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
     public void configure(Map<String, ?> configs, boolean isKey) {
         if (!isConfigured) {
             AbstractConfig config = new AesMessageDeserializerConfig(configs);
+
             String path = config.getString(
                     AesMessageDeserializerConfig.PRIVATE_KEY_CONFIG);
             PrivateKey privateKey;
@@ -68,9 +85,13 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
             } catch (IOException e) {
                 throw new CommonException(e);
             }
+
+            Integer cacheCapacity = config.getInt(
+                    AesMessageDeserializerConfig.CACHE_DECRYPTION_CAPACITY_CONFIG);
             EncryptionAlgorithm algorithm = EncryptionAlgorithm.valueOf(
                     config.getString(AesMessageDeserializerConfig.ALGORITHM_CONFIG));
-            DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(algorithm, privateKey);
+            DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                    algorithm, privateKey, cacheCapacity);
             AesGcmCipher cipher = new AesGcmCipher();
             messageHandler = new MessageHandler(cipher, keyManager, null);
 
