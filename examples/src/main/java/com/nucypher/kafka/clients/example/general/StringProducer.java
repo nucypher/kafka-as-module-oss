@@ -1,6 +1,6 @@
 package com.nucypher.kafka.clients.example.general;
 
-import com.nucypher.kafka.TestConstants;
+import com.nucypher.kafka.TestUtils;
 import com.nucypher.kafka.clients.encrypt.AesMessageSerializer;
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
@@ -83,7 +83,7 @@ public class StringProducer {
                         new StringSerializer(),
                         new AesMessageSerializer<>(
                                 new StringSerializer(),
-                                TestConstants.ENCRYPTION_ALGORITHM,
+                                TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                                 publicKey
                         )
                 );
@@ -94,7 +94,7 @@ public class StringProducer {
                         new StringSerializer(),
                         new AesStructuredMessageSerializer<>(
                                 new StringSerializer(),
-                                TestConstants.ENCRYPTION_ALGORITHM,
+                                TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                                 publicKey,
                                 DataFormat.JSON,
                                 fields

@@ -36,6 +36,7 @@ dependencies {
     }
 
     compile "com.google.guava:guava:$guavaVersion"
+    compile "org.reflections:reflections:$reflectionsVersion"
 
     testCompile "junit:junit:$junitVersion"
     testCompile "org.apache.curator:curator-test:$curatorVersion"

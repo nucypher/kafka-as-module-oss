@@ -1,9 +1,10 @@
 package com.nucypher.kafka.admin;
 
+import com.nucypher.crypto.EncryptionAlgorithm;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessor;
+import com.nucypher.kafka.encrypt.ReEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import com.nucypher.kafka.utils.GranularUtils;
 import com.nucypher.kafka.utils.KeyType;
 import com.nucypher.kafka.utils.KeyUtils;
@@ -16,10 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.time.ZonedDateTime;
 import java.util.Collection;
@@ -38,6 +36,9 @@ public class AdminHandler {
 
     private AdminZooKeeperHandler zooKeeperHandler;
 
+    /**
+     * @param handler ZooKeeper handler
+     */
     public AdminHandler(AdminZooKeeperHandler handler) {
         zooKeeperHandler = handler;
     }
@@ -74,8 +75,7 @@ public class AdminHandler {
             ZonedDateTime expired,
             Collection<String> fields,
             String accessorClassName,
-            DataFormat format)
-            throws CommonException {
+            DataFormat format) throws CommonException {
         BiFunction<String, WrapperReEncryptionKey, KeyHolder> creatorFunction;
         creatorFunction = (String field, WrapperReEncryptionKey key) ->
         {
@@ -149,11 +149,13 @@ public class AdminHandler {
         for (Map.Entry<String, WrapperReEncryptionKey> entry : reKeys.entrySet()) {
             KeyHolder keyHolder = creatorFunction.apply(entry.getKey(), entry.getValue());
             zooKeeperHandler.saveKeyToZooKeeper(keyHolder);
-            LOGGER.info("Key for user '{}' with type '{}' for channel '{}' and field '{}' was created",
+            LOGGER.info("Key for user '{}' with type '{}' for channel '{}' and field '{}' " +
+                            "was created using algorithm '{}'",
                     keyHolder.getName(),
                     keyHolder.getType(),
                     keyHolder.getChannel() == null ? "all" : keyHolder.getChannel(),
-                    keyHolder.getField() == null ? "all" : keyHolder.getField());
+                    keyHolder.getField() == null ? "all" : keyHolder.getField(),
+                    algorithm.getClass().getCanonicalName());
         }
     }
 
@@ -188,6 +190,7 @@ public class AdminHandler {
             throw new CommonException(e);
         }
 
+        ReEncryptionKeyManager keyManager = new ReEncryptionKeyManager(algorithm);
         for (String field : fields) {
             String fieldName = GranularUtils.getChannelFieldName(channel, field);
             PrivateKey key = GranularUtils.deriveKeyFromData(masterKey, fieldName);
@@ -195,12 +198,12 @@ public class AdminHandler {
             WrapperReEncryptionKey reEncryptionKey;
             switch (clientType) {
                 case CONSUMER:
-                    reEncryptionKey = getReEncryptionKey(
-                            algorithm, masterKeyPair, clientKeyPair, curve, keyType);
+                    reEncryptionKey = keyManager.generateReEncryptionKey(
+                            masterKeyPair, clientKeyPair, keyType, curve);
                     break;
                 case PRODUCER:
-                    reEncryptionKey = getReEncryptionKey(
-                            algorithm, clientKeyPair, masterKeyPair, curve, KeyType.PRIVATE);
+                    reEncryptionKey = keyManager.generateReEncryptionKey(
+                            clientKeyPair, masterKeyPair, KeyType.PRIVATE, curve);
                     break;
                 default:
                     throw new CommonException("Unsupported client type %s", clientType);
@@ -219,11 +222,14 @@ public class AdminHandler {
             ClientType clientType,
             KeyType keyType) {
         keyType = getKeyType(clientType, keyType);
+        ReEncryptionKeyManager keyManager = new ReEncryptionKeyManager(algorithm);
         switch (clientType) {
             case CONSUMER:
-                return getReEncryptionKey(algorithm, masterKey, clientKey, curve, keyType);
+                return keyManager.generateReEncryptionKey(
+                        masterKey, clientKey, keyType, curve);
             case PRODUCER:
-                return getReEncryptionKey(algorithm, clientKey, masterKey, curve, KeyType.PRIVATE);
+                return keyManager.generateReEncryptionKey(
+                        clientKey, masterKey, KeyType.PRIVATE, curve);
             default:
                 throw new CommonException("Unsupported client type %s", clientType);
         }
@@ -240,34 +246,6 @@ public class AdminHandler {
             keyType = KeyType.DEFAULT;
         }
         return keyType;
-    }
-
-    private WrapperReEncryptionKey getReEncryptionKey(
-            EncryptionAlgorithm algorithm,
-            KeyPair keyPairFrom,
-            KeyPair keyPairTo,
-            String curve,
-            KeyType keyType) {
-        try {
-            return KeyUtils.generateReEncryptionKey(algorithm, keyPairFrom, keyPairTo, keyType, curve);
-        } catch (IOException | NoSuchAlgorithmException |
-                InvalidKeyException | NoSuchProviderException e) {
-            throw new CommonException(e);
-        }
-    }
-
-    private WrapperReEncryptionKey getReEncryptionKey(
-            EncryptionAlgorithm algorithm,
-            String keyFrom,
-            String keyTo,
-            String curve,
-            KeyType keyType) {
-        try {
-            return KeyUtils.generateReEncryptionKey(algorithm, keyFrom, keyTo, keyType, curve);
-        } catch (IOException | NoSuchAlgorithmException |
-                InvalidKeyException | NoSuchProviderException e) {
-            throw new CommonException(e);
-        }
     }
 
     /**
@@ -369,8 +347,9 @@ public class AdminHandler {
                                 String curve,
                                 String privateKeyPath,
                                 String publicKeyPath) {
+        ReEncryptionKeyManager keyManager = new ReEncryptionKeyManager(algorithm);
         try {
-            KeyPair keyPair = KeyUtils.generateECKeyPair(algorithm, curve).getKeyPair();
+            KeyPair keyPair = keyManager.generateECKeyPair(curve).getKeyPair();
             LOGGER.info("Key pair '{}' were generated", curve);
             KeyUtils.writeKeyPairToPEM(privateKeyPath, keyPair, KeyType.PRIVATE);
             LOGGER.info("Private key was saved to the path '{}'", privateKeyPath);

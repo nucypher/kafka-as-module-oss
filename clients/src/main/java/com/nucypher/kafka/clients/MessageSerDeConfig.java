@@ -1,7 +1,7 @@
 package com.nucypher.kafka.clients;
 
 
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
+import com.nucypher.crypto.impl.ElGamalEncryptionAlgorithm;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 
@@ -14,7 +14,8 @@ public class MessageSerDeConfig extends AbstractConfig {
 
     public static final String ALGORITHM_CONFIG = "encryption.algorithm";
     public static final String ALGORITHM_DOC = "Encryption algorithm used for DEK encryption";
-    public static final String ALGORITHM_DEFAULT = EncryptionAlgorithm.ELGAMAL.toString();
+    public static final String ALGORITHM_DEFAULT =
+            ElGamalEncryptionAlgorithm.class.getCanonicalName();
 
     public static ConfigDef baseConfigDef() {
         return new ConfigDef()

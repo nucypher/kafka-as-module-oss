@@ -61,3 +61,14 @@ jar.dependsOn copyToLib
 applicationDistribution.from("config-example/") {
     into "config-example"
 }
+
+startScripts {
+    doLast {
+        def windowsScriptFile = file getWindowsScript()
+        def unixScriptFile    = file getUnixScript()
+        windowsScriptFile.text = windowsScriptFile.text.replaceAll(
+                'CLASSPATH=\\S*', 'CLASSPATH=%APP_HOME%\\\\lib\\\\*')
+        unixScriptFile.text  = unixScriptFile.text.replaceAll(
+                'CLASSPATH=\\S*\n', 'CLASSPATH=\\$APP_HOME/lib/*\n')
+    }
+}

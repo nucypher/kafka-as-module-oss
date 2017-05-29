@@ -1,8 +1,11 @@
 package com.nucypher.kafka.admin;
 
+import com.nucypher.crypto.AlgorithmName;
+import com.nucypher.crypto.EncryptionAlgorithm;
+import com.nucypher.crypto.impl.ElGamalEncryptionAlgorithm;
 import com.nucypher.kafka.INamed;
 import com.nucypher.kafka.clients.granular.DataFormat;
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
+import com.nucypher.kafka.utils.EncryptionAlgorithmUtils;
 import com.nucypher.kafka.utils.KeyType;
 import com.nucypher.kafka.zk.ClientType;
 import com.nucypher.kafka.zk.EncryptionType;
@@ -28,6 +31,9 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static joptsimple.internal.Classes.shortNameOf;
+import static joptsimple.internal.Strings.isNullOrEmpty;
 
 /**
  * Command line interface for control keys
@@ -181,8 +187,8 @@ public class Console {
         parser.acceptsAll(Arrays.asList("algorithm", "alg"), "encryption algorithm")
                 .availableIf(addKeyCommand, generateKeyCommand)
                 .withRequiredArg()
-                .withValuesConvertedBy(new NamedConverter<>(EncryptionAlgorithm::values))
-                .defaultsTo(EncryptionAlgorithm.ELGAMAL);
+                .withValuesConvertedBy(new EncryptionAlgorithmConverter())
+                .defaultsTo(new ElGamalEncryptionAlgorithm());
 
         parser.acceptsAll(Arrays.asList("curve-name", "cvn"), "elliptic curve name")
                 .requiredIf(generateKeyCommand)
@@ -314,7 +320,6 @@ public class Console {
         public String valuePattern() {
             Set<String> values = new LinkedHashSet<>();
             for (T named : supplier.get()) {
-//				values.add(named.toString());
                 values.add(named.getName().toLowerCase());
                 values.add(named.getShortName());
             }
@@ -339,6 +344,42 @@ public class Console {
         @Override
         public String valuePattern() {
             return "ISO-8601";
+        }
+
+    }
+
+    private static class EncryptionAlgorithmConverter implements ValueConverter<EncryptionAlgorithm> {
+
+        @Override
+        public EncryptionAlgorithm convert(String value) {
+            if (value == null) {
+                return null;
+            }
+            return EncryptionAlgorithmUtils.getEncryptionAlgorithm(value);
+        }
+
+        @Override
+        public String revert(Object value) {
+            if (value == null) {
+                return null;
+            }
+            Class<?> clazz = value.getClass();
+            AlgorithmName name = clazz.getAnnotation(AlgorithmName.class);
+            if (name == null) {
+                return clazz.getCanonicalName();
+            }
+            return name.value();
+        }
+
+        @Override
+        public Class<EncryptionAlgorithm> valueType() {
+            return EncryptionAlgorithm.class;
+        }
+
+        @Override
+        public String valuePattern() {
+            Set<String> values = EncryptionAlgorithmUtils.getAvailableAlgorithms();
+            return "[" + values.stream().map(x -> x.replaceAll("\\.", "\\.")).collect(Collectors.joining(", ")) + "]";
         }
 
     }
@@ -381,6 +422,18 @@ public class Console {
                     '\n' +
                     "Other parameters\n" +
                     super.format(otherOptions);
+        }
+
+        @Override
+        protected String extractTypeIndicator(OptionDescriptor descriptor) {
+            String indicator = descriptor.argumentTypeIndicator();
+            if (isNullOrEmpty(indicator) || String.class.getName().equals(indicator)) {
+                return "String";
+            }
+            if (indicator.startsWith("[") && indicator.endsWith("]")) {
+                return indicator;
+            }
+            return shortNameOf(indicator);
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.nucypher.kafka.clients.example.granular;
 
 import com.google.common.io.Resources;
-import com.nucypher.kafka.TestConstants;
+import com.nucypher.kafka.TestUtils;
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
 import com.nucypher.kafka.clients.granular.DataFormat;
@@ -52,12 +52,12 @@ public class AvroSchemaLessProducer {
 
             // load PEM file from resources
             File file = new File(AvroSchemaLessProducer.class.getClassLoader()
-                    .getResource(TestConstants.PEM).getFile());
+                    .getResource(TestUtils.PEM).getFile());
             PublicKey publicKey = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPublic();
 
             Serializer<Object> serializer = new AesStructuredMessageSerializer<>(
                     new KafkaAvroSerializer(),
-                    TestConstants.ENCRYPTION_ALGORITHM,
+                    TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                     publicKey,
                     DataFormat.AVRO_SCHEMA_LESS
             );

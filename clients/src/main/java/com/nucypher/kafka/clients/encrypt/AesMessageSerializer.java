@@ -1,10 +1,11 @@
 package com.nucypher.kafka.clients.encrypt;
 
+import com.nucypher.crypto.EncryptionAlgorithm;
 import com.nucypher.kafka.cipher.AesGcmCipher;
 import com.nucypher.kafka.clients.MessageHandler;
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
+import com.nucypher.kafka.utils.EncryptionAlgorithmUtils;
 import com.nucypher.kafka.utils.KeyUtils;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.serialization.Serializer;
@@ -43,15 +44,17 @@ public class AesMessageSerializer<T> implements Serializer<T> {
     }
 
     /**
-     * @param serializer Kafka serializer
-     * @param algorithm  encryption algorithm
-     * @param publicKey  public key
+     * @param serializer     Kafka serializer
+     * @param algorithmClass class of encryption algorithm
+     * @param publicKey      public key
      */
     public AesMessageSerializer(Serializer<T> serializer,
-                                EncryptionAlgorithm algorithm,
+                                Class<? extends EncryptionAlgorithm> algorithmClass,
                                 PublicKey publicKey) {
         this.serializer = serializer;
         SecureRandom secureRandom = new SecureRandom();
+        EncryptionAlgorithm algorithm =
+                EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager =
                 new DataEncryptionKeyManager(algorithm, publicKey, secureRandom);
         AesGcmCipher cipher = new AesGcmCipher();
@@ -63,16 +66,18 @@ public class AesMessageSerializer<T> implements Serializer<T> {
     /**
      * Common constructor
      *
-     * @param serializer Kafka serializer
-     * @param algorithm  encryption algorithm
-     * @param publicKey  public key
+     * @param serializer     Kafka serializer
+     * @param algorithmClass class of encryption algorithm
+     * @param publicKey      public key
      */
     public AesMessageSerializer(Serializer<T> serializer,
-                                EncryptionAlgorithm algorithm,
+                                Class<? extends EncryptionAlgorithm> algorithmClass,
                                 PublicKey publicKey,
                                 Integer encryptionCacheCapacity) {
         this.serializer = serializer;
         SecureRandom secureRandom = new SecureRandom();
+        EncryptionAlgorithm algorithm =
+                EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                 algorithm, publicKey, secureRandom, encryptionCacheCapacity);
         AesGcmCipher cipher = new AesGcmCipher();
@@ -97,7 +102,7 @@ public class AesMessageSerializer<T> implements Serializer<T> {
 
             Integer cacheCapacity = config.getInt(
                     AesMessageSerializerConfig.CACHE_ENCRYPTION_CAPACITY_CONFIG);
-            EncryptionAlgorithm algorithm = EncryptionAlgorithm.valueOf(
+            EncryptionAlgorithm algorithm = EncryptionAlgorithmUtils.getEncryptionAlgorithm(
                     config.getString(AesMessageSerializerConfig.ALGORITHM_CONFIG));
             SecureRandom secureRandom = new SecureRandom();
             DataEncryptionKeyManager keyManager =

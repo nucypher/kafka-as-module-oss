@@ -5,7 +5,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 
 /**
- * The structured data accessor. Must have default constructor
+ * The structured data accessor. The implementation must have default constructor
  */
 public interface StructuredDataAccessor {
 

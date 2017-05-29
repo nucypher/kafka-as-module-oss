@@ -1,11 +1,12 @@
 package com.nucypher.kafka.admin;
 
-import com.nucypher.kafka.TestConstants;
+import com.nucypher.crypto.EncryptionAlgorithm;
+import com.nucypher.kafka.TestUtils;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.JsonDataAccessor;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessorStub;
+import com.nucypher.kafka.encrypt.ReEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import com.nucypher.kafka.utils.GranularUtils;
 import com.nucypher.kafka.utils.KeyType;
 import com.nucypher.kafka.utils.KeyUtils;
@@ -15,6 +16,8 @@ import com.nucypher.kafka.zk.ClientType;
 import com.nucypher.kafka.zk.EncryptionType;
 import com.nucypher.kafka.zk.KeyHolder;
 import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.interfaces.ECPrivateKey;
+import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.hamcrest.core.IsInstanceOf;
 import org.hamcrest.core.StringContains;
 import org.junit.Before;
@@ -31,8 +34,6 @@ import org.powermock.modules.junit4.PowerMockRunner;
 
 import java.math.BigInteger;
 import java.security.KeyPair;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -40,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -55,6 +55,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 import static org.powermock.api.mockito.PowerMockito.verifyStatic;
+import static org.powermock.api.mockito.PowerMockito.whenNew;
 
 /**
  * Test for {@link AdminHandler}
@@ -62,26 +63,27 @@ import static org.powermock.api.mockito.PowerMockito.verifyStatic;
  * @author szotov
  */
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({KeyUtils.class, GranularUtils.class})
+@PrepareForTest({KeyUtils.class,
+        GranularUtils.class,
+        ReEncryptionKeyManager.class,
+        AdminHandler.class})
 @PowerMockIgnore("javax.management.*")
 public class AdminHandlerTest {
 
-    private static final EncryptionAlgorithm ALGORITHM = TestConstants.ENCRYPTION_ALGORITHM;
+    private static final EncryptionAlgorithm ALGORITHM = TestUtils.ENCRYPTION_ALGORITHM;
 
     @Mock
     private AdminZooKeeperHandler zooKeeperHandler;
     @Mock
-    private PrivateKey inputPrivateKey;
+    private ReEncryptionKeyManager keyManager;
     @Mock
-    private PrivateKey privateKey;
+    private ECPrivateKey inputPrivateKey;
     @Mock
-    private PublicKey publicKey;
-    @Captor
-    private ArgumentCaptor<String> stringCaptor;
+    private ECPrivateKey privateKey;
+    @Mock
+    private ECPublicKey publicKey;
     @Captor
     private ArgumentCaptor<KeyHolder> keyHolderCaptor;
-    @Captor
-    private ArgumentCaptor<KeyType> keyTypeCaptor;
     @Captor
     private ArgumentCaptor<KeyPair> keyPairCaptor;
     @Rule
@@ -101,7 +103,7 @@ public class AdminHandlerTest {
         fields.add("b");
     }
 
-    private WrapperReEncryptionKey key = new WrapperReEncryptionKey(ALGORITHM,
+    private WrapperReEncryptionKey reKey = new WrapperReEncryptionKey(ALGORITHM,
             BigInteger.ONE, ECNamedCurveTable.getParameterSpec("secp521r1"));
 
     /**
@@ -111,10 +113,10 @@ public class AdminHandlerTest {
     public void initialize() throws Exception {
         initMocks(this);
         mockStatic(KeyUtils.class, GranularUtils.class);
-        when(KeyUtils.generateReEncryptionKey(
-                any(), anyString(), anyString(), any(), anyString())).thenReturn(key);
-        when(KeyUtils.generateReEncryptionKey(
-                any(), (KeyPair) any(), any(), any(), anyString())).thenReturn(key);
+        when(keyManager.generateReEncryptionKey(
+                anyString(), anyString(), any(), anyString())).thenReturn(reKey);
+        when(keyManager.generateReEncryptionKey(
+                (KeyPair) any(), any(), any(), anyString())).thenReturn(reKey);
         when(KeyUtils.getECKeyPairFromPEM(anyString()))
                 .thenReturn(new KeyPair(null, inputPrivateKey));
         when(GranularUtils.deriveKeyFromData(anyString(), any())).thenReturn(privateKey);
@@ -123,6 +125,8 @@ public class AdminHandlerTest {
                     Object[] args = invocation.getArguments();
                     return args[0] + "-" + args[1];
                 });
+        whenNew(ReEncryptionKeyManager.class).withArguments(ALGORITHM)
+                .thenReturn(keyManager);
 
         handler = new AdminHandler(zooKeeperHandler);
     }
@@ -148,17 +152,10 @@ public class AdminHandlerTest {
                 null,
                 null);
 
-        verifyStatic(times(1));
-        KeyUtils.generateReEncryptionKey(eq(ALGORITHM), stringCaptor.capture(),
-                stringCaptor.capture(), keyTypeCaptor.capture(), stringCaptor.capture());
-        List<String> values = stringCaptor.getAllValues();
-        assertEquals(masterKey, values.get(0));
-        assertEquals(clientKey, values.get(1));
-        assertEquals(curve, values.get(2));
-        assertEquals(KeyType.DEFAULT, keyTypeCaptor.getValue());
-
+        verify(keyManager, times(1)).generateReEncryptionKey(
+                eq(masterKey), eq(clientKey), eq(KeyType.DEFAULT), eq(curve));
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
-                new KeyHolder(channel, clientName, ClientType.CONSUMER, key));
+                new KeyHolder(channel, clientName, ClientType.CONSUMER, reKey));
         verify(zooKeeperHandler, times(1))
                 .createChannelInZooKeeper(channel, EncryptionType.FULL, null);
     }
@@ -189,9 +186,12 @@ public class AdminHandlerTest {
         GranularUtils.deriveKeyFromData(eq(masterKey), eq(channel + "-b"));
         verifyStatic(times(1));
         KeyUtils.getECKeyPairFromPEM(eq(clientKey));
-        verifyStatic(times(2));
-        KeyUtils.generateReEncryptionKey(eq(ALGORITHM),
-                keyPairCaptor.capture(), keyPairCaptor.capture(), eq(KeyType.DEFAULT), eq(curve));
+        verify(keyManager, times(2))
+                .generateReEncryptionKey(
+                        keyPairCaptor.capture(),
+                        keyPairCaptor.capture(),
+                        eq(KeyType.DEFAULT),
+                        eq(curve));
         List<KeyPair> values = keyPairCaptor.getAllValues();
         assertEquals(privateKey, values.get(0).getPrivate());
         assertEquals(inputPrivateKey, values.get(1).getPrivate());
@@ -200,10 +200,10 @@ public class AdminHandlerTest {
 
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
                 KeyHolder.builder().setChannel(channel).setName(clientName)
-                        .setType(ClientType.CONSUMER).setKey(key).setField("a.c").build());
+                        .setType(ClientType.CONSUMER).setKey(reKey).setField("a.c").build());
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
                 KeyHolder.builder().setChannel(channel).setName(clientName)
-                        .setType(ClientType.CONSUMER).setKey(key).setField("b").build());
+                        .setType(ClientType.CONSUMER).setKey(reKey).setField("b").build());
         verify(zooKeeperHandler, never())
                 .createChannelInZooKeeper(channel, EncryptionType.GRANULAR, null);
     }
@@ -230,20 +230,13 @@ public class AdminHandlerTest {
                 null,
                 null);
 
-        verifyStatic(times(1));
-        KeyUtils.generateReEncryptionKey(eq(ALGORITHM), stringCaptor.capture(),
-                stringCaptor.capture(), keyTypeCaptor.capture(), stringCaptor.capture());
-        List<String> values = stringCaptor.getAllValues();
-        assertEquals(clientKey, values.get(0));
-        assertEquals(masterKey, values.get(1));
-        assertNull(values.get(2));
-        assertEquals(KeyType.PRIVATE, keyTypeCaptor.getValue());
-
+        verify(keyManager, times(1)).generateReEncryptionKey(
+                eq(clientKey), eq(masterKey), eq(KeyType.PRIVATE), (String) isNull());
         verify(zooKeeperHandler, times(1))
                 .createChannelInZooKeeper(channel, EncryptionType.FULL, null);
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
                 new KeyHolder(channel, clientName, ClientType.PRODUCER,
-                        key, dateTime.toInstant().toEpochMilli()));
+                        reKey, dateTime.toInstant().toEpochMilli()));
     }
 
     /**
@@ -268,9 +261,11 @@ public class AdminHandlerTest {
                 StructuredDataAccessorStub.class.getCanonicalName(),
                 null);
 
-        verifyStatic(times(2));
-        KeyUtils.generateReEncryptionKey(eq(ALGORITHM), keyPairCaptor.capture(),
-                keyPairCaptor.capture(), eq(KeyType.PRIVATE), (String) isNull());
+        verify(keyManager, times(2)).generateReEncryptionKey(
+                keyPairCaptor.capture(),
+                keyPairCaptor.capture(),
+                eq(KeyType.PRIVATE),
+                (String) isNull());
         List<KeyPair> values = keyPairCaptor.getAllValues();
         assertEquals(inputPrivateKey, values.get(0).getPrivate());
         assertEquals(privateKey, values.get(1).getPrivate());
@@ -279,11 +274,11 @@ public class AdminHandlerTest {
 
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
                 KeyHolder.builder().setChannel(channel).setName(clientName)
-                        .setType(ClientType.PRODUCER).setKey(key)
+                        .setType(ClientType.PRODUCER).setKey(reKey)
                         .setExpiredDate(dateTime.toInstant().toEpochMilli()).setField("a.c").build());
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
                 KeyHolder.builder().setChannel(channel).setName(clientName)
-                        .setType(ClientType.PRODUCER).setKey(key)
+                        .setType(ClientType.PRODUCER).setKey(reKey)
                         .setExpiredDate(dateTime.toInstant().toEpochMilli()).setField("b").build());
         verify(zooKeeperHandler, times(1))
                 .createChannelInZooKeeper(
@@ -312,11 +307,11 @@ public class AdminHandlerTest {
 
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
                 KeyHolder.builder().setChannel(channel).setName(clientName)
-                        .setType(ClientType.PRODUCER).setKey(key)
+                        .setType(ClientType.PRODUCER).setKey(reKey)
                         .setField("a.c").build());
         verify(zooKeeperHandler, times(1)).saveKeyToZooKeeper(
                 KeyHolder.builder().setChannel(channel).setName(clientName)
-                        .setType(ClientType.PRODUCER).setKey(key)
+                        .setType(ClientType.PRODUCER).setKey(reKey)
                         .setField("b").build());
         verify(zooKeeperHandler, times(1))
                 .createChannelInZooKeeper(channel, EncryptionType.GRANULAR, JsonDataAccessor.class);
@@ -351,7 +346,7 @@ public class AdminHandlerTest {
         assertEquals(channel, keyHolder.getChannel());
         assertEquals(clientName, keyHolder.getName());
         assertEquals(ClientType.PRODUCER, keyHolder.getType());
-        assertSame(key, keyHolder.getKey());
+        assertSame(reKey, keyHolder.getKey());
         assertTrue(Math.abs(keyHolder.getExpiredDate() - minDate) <
                 TimeUnit.SECONDS.toMillis(1));
     }
@@ -467,8 +462,8 @@ public class AdminHandlerTest {
                 null,
                 null);
 
-        verifyStatic(atLeastOnce());
-        KeyUtils.generateReEncryptionKey(any(), anyString(), anyString(), eq(keyType), anyString());
+        verify(keyManager, atLeastOnce()).generateReEncryptionKey(
+                anyString(), anyString(), eq(keyType), anyString());
     }
 
     /**
@@ -498,9 +493,8 @@ public class AdminHandlerTest {
                 null,
                 null);
 
-        verifyStatic(atLeastOnce());
-        KeyUtils.generateReEncryptionKey(any(), (KeyPair) any(),
-                any(), eq(keyType), anyString());
+        verify(keyManager, atLeastOnce()).generateReEncryptionKey(
+                (KeyPair) any(), any(), eq(keyType), anyString());
     }
 
     /**
@@ -620,21 +614,19 @@ public class AdminHandlerTest {
     @Test
     public void testGenerateKeys() throws Exception {
         KeyPair keyPair = new KeyPair(publicKey, privateKey);
-        when(KeyUtils.generateECKeyPair(any(), anyString()))
-                .thenReturn(new KeyUtils.KeyPairHolder(keyPair, null));
+        when(keyManager.generateECKeyPair(anyString())).thenReturn(
+                new ReEncryptionKeyManager.KeyPairHolder(keyPair, null));
 
         String privateKeyPath = "privateKey";
         String publicKeyPath = "publicKey";
 
         handler.generateKeyPair(ALGORITHM, curve, privateKeyPath, null);
-        verifyStatic(times(1));
-        KeyUtils.generateECKeyPair(eq(ALGORITHM), eq(curve));
+        verify(keyManager, times(1)).generateECKeyPair(eq(curve));
         verifyStatic(times(1));
         KeyUtils.writeKeyPairToPEM(eq(privateKeyPath), eq(keyPair), eq(KeyType.PRIVATE));
 
         handler.generateKeyPair(ALGORITHM, curve, privateKeyPath, publicKeyPath);
-        verifyStatic(times(2));
-        KeyUtils.generateECKeyPair(eq(ALGORITHM), eq(curve));
+        verify(keyManager, times(2)).generateECKeyPair(eq(curve));
         verifyStatic(times(2));
         KeyUtils.writeKeyPairToPEM(eq(privateKeyPath), eq(keyPair), eq(KeyType.PRIVATE));
         verifyStatic(times(1));

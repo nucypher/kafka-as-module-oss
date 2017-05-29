@@ -1,8 +1,8 @@
 package com.nucypher.kafka.zk;
 
-import com.nucypher.kafka.TestConstants;
+import com.nucypher.crypto.EncryptionAlgorithm;
+import com.nucypher.kafka.TestUtils;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessorStub;
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECParameterSpec;
@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class DataUtils {
 
-    private static final EncryptionAlgorithm ALGORITHM = TestConstants.ENCRYPTION_ALGORITHM;
+    private static final EncryptionAlgorithm ALGORITHM = TestUtils.ENCRYPTION_ALGORITHM;
     private static final Random RANDOM = new Random();
     private static final ECParameterSpec EC_SPEC =
             ECNamedCurveTable.getParameterSpec("secp521r1");
@@ -47,7 +47,7 @@ public class DataUtils {
         RANDOM.nextBytes(data1);
         byte[] data2 = new byte[14];
         RANDOM.nextBytes(data2);
-        return new WrapperReEncryptionKey(ALGORITHM, data1, EC_SPEC, data2, 111);
+        return new WrapperReEncryptionKey(ALGORITHM, data1, EC_SPEC, data2);
     }
 
     /**

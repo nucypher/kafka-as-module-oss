@@ -1,9 +1,10 @@
 package com.nucypher.kafka.utils;
 
-import com.nucypher.kafka.TestConstants;
-import org.junit.Rule;
+import com.nucypher.crypto.EncryptionAlgorithm;
+import com.nucypher.kafka.TestUtils;
+import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -24,12 +25,9 @@ import static org.junit.Assert.assertNotEquals;
 @RunWith(Parameterized.class)
 public final class SubkeyGeneratorTest {
 
-    private static final EncryptionAlgorithm ALGORITHM = TestConstants.ENCRYPTION_ALGORITHM;
+    private static final EncryptionAlgorithm ALGORITHM = TestUtils.ENCRYPTION_ALGORITHM;
 
-    private String curveName;
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+    private ECParameterSpec ecParameterSpec;
 
     /**
      * @return array of available EC curve names
@@ -42,7 +40,7 @@ public final class SubkeyGeneratorTest {
     }
 
     public SubkeyGeneratorTest(String curveName) {
-        this.curveName = curveName;
+        ecParameterSpec = ECNamedCurveTable.getParameterSpec(curveName);
     }
 
     /**
@@ -51,8 +49,7 @@ public final class SubkeyGeneratorTest {
     @Test
     public void testGenerateKey() throws IOException {
         for (int i = 0; i < 20; i++) {
-            PrivateKey basePrivateKey = KeyUtils.generateECKeyPair(ALGORITHM, curveName)
-                    .getKeyPair().getPrivate();
+            PrivateKey basePrivateKey = ALGORITHM.generateECKeyPair(ecParameterSpec).getPrivate();
 
             String message = "a.b.2";
             PrivateKey generatedPrivateKey1 = SubkeyGenerator.deriveKey(basePrivateKey, message, null);
@@ -65,8 +62,7 @@ public final class SubkeyGeneratorTest {
             PrivateKey generatedPrivateKey3 = SubkeyGenerator.deriveKey(basePrivateKey, message, null);
             assertEquals(generatedPrivateKey2, generatedPrivateKey3);
 
-            basePrivateKey = KeyUtils.generateECKeyPair(ALGORITHM, curveName)
-                    .getKeyPair().getPrivate();
+            basePrivateKey = ALGORITHM.generateECKeyPair(ecParameterSpec).getPrivate();
             PrivateKey generatedPrivateKey4 = SubkeyGenerator.deriveKey(basePrivateKey, message, null);
             assertNotEquals(generatedPrivateKey3, generatedPrivateKey4);
         }

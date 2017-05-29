@@ -3,7 +3,7 @@ package com.nucypher.kafka.clients.example.granular;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.Resources;
-import com.nucypher.kafka.TestConstants;
+import com.nucypher.kafka.TestUtils;
 import com.nucypher.kafka.clients.decrypt.AesStructuredMessageDeserializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
 import com.nucypher.kafka.clients.granular.DataFormat;
@@ -46,7 +46,7 @@ public class JsonConsumer {
 
             // load PEM file from resources
             File file = new File(JsonConsumer.class.getClassLoader()
-                    .getResource(TestConstants.PEM).getFile());
+                    .getResource(TestUtils.PEM).getFile());
             final PrivateKey privateKey =
                     KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath()).getPrivate();
 
@@ -55,7 +55,7 @@ public class JsonConsumer {
                     new StringDeserializer(),
                     new AesStructuredMessageDeserializer<>(
                             new StringDeserializer(),
-                            TestConstants.ENCRYPTION_ALGORITHM,
+                            TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                             privateKey,
                             DataFormat.JSON
                     )

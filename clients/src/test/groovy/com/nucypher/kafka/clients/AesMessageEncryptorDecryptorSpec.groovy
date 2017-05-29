@@ -1,9 +1,9 @@
 package com.nucypher.kafka.clients
 
-import com.nucypher.kafka.TestConstants
+import com.nucypher.crypto.EncryptionAlgorithm
+import com.nucypher.kafka.TestUtils
 import com.nucypher.kafka.clients.decrypt.AesMessageDeserializer
 import com.nucypher.kafka.clients.encrypt.AesMessageSerializer
-import com.nucypher.kafka.utils.EncryptionAlgorithm
 import com.nucypher.kafka.utils.KeyUtils
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
@@ -11,14 +11,15 @@ import spock.lang.Specification
 
 import java.security.KeyPair
 
-import static com.nucypher.kafka.TestConstants.PEM
+import static TestUtils.PEM
 
 /**
  * Test for {@link AesMessageSerializer} and {@link AesMessageDeserializer}
  */
 class AesMessageEncryptorDecryptorSpec extends Specification {
 
-    static final EncryptionAlgorithm ALGORITHM = TestConstants.ENCRYPTION_ALGORITHM
+    static final Class<? extends EncryptionAlgorithm> ALGORITHM =
+            TestUtils.ENCRYPTION_ALGORITHM_CLASS
 
     def 'encrypt and decrypt message'() {
         setup: 'initialization'

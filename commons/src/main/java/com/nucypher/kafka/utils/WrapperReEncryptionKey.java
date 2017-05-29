@@ -1,5 +1,6 @@
 package com.nucypher.kafka.utils;
 
+import com.nucypher.crypto.EncryptionAlgorithm;
 import com.nucypher.kafka.errors.CommonException;
 import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.x9.X9ECParameters;
@@ -22,7 +23,6 @@ public class WrapperReEncryptionKey {
     private BigInteger key;
     private ECParameterSpec ecSpec;
     private byte[] encryptedRandomKey;
-    private Integer randomKeyLength;
     private EncryptionAlgorithm algorithm;
 
     /**
@@ -59,16 +59,13 @@ public class WrapperReEncryptionKey {
      * @param key                the re-encryption key data
      * @param ecSpec             {@link ECParameterSpec} for the key
      * @param encryptedRandomKey encrypted random key
-     * @param randomKeyLength    random key length
      */
     public WrapperReEncryptionKey(EncryptionAlgorithm algorithm,
                                   byte[] key,
                                   ECParameterSpec ecSpec,
-                                  byte[] encryptedRandomKey,
-                                  Integer randomKeyLength) {
+                                  byte[] encryptedRandomKey) {
         this(algorithm, key, ecSpec);
         this.encryptedRandomKey = encryptedRandomKey;
-        this.randomKeyLength = randomKeyLength;
     }
 
     /**
@@ -76,16 +73,13 @@ public class WrapperReEncryptionKey {
      * @param key                the re-encryption key
      * @param ecSpec             {@link ECParameterSpec} for the key
      * @param encryptedRandomKey encrypted random key
-     * @param randomKeyLength    random key length
      */
     public WrapperReEncryptionKey(EncryptionAlgorithm algorithm,
                                   BigInteger key,
                                   ECParameterSpec ecSpec,
-                                  byte[] encryptedRandomKey,
-                                  Integer randomKeyLength) {
+                                  byte[] encryptedRandomKey) {
         this(algorithm, key, ecSpec);
         this.encryptedRandomKey = encryptedRandomKey;
-        this.randomKeyLength = randomKeyLength;
     }
 
     /**
@@ -117,13 +111,6 @@ public class WrapperReEncryptionKey {
     }
 
     /**
-     * @return random key length
-     */
-    public Integer getRandomKeyLength() {
-        return randomKeyLength;
-    }
-
-    /**
      * @return is re-encryption key is empty or not
      */
     public boolean isEmpty() {
@@ -144,6 +131,24 @@ public class WrapperReEncryptionKey {
         return !isEmpty() && encryptedRandomKey != null;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WrapperReEncryptionKey that = (WrapperReEncryptionKey) o;
+        return Objects.equals(key, that.key) &&
+                Objects.equals(ecSpec, that.ecSpec) &&
+                Arrays.equals(encryptedRandomKey, that.encryptedRandomKey) &&
+                Objects.equals(algorithm != null ? algorithm.getClass() : null,
+                        that.algorithm != null ? that.algorithm.getClass() : null);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key, ecSpec, encryptedRandomKey,
+                algorithm != null ? algorithm.getClass() : null);
+    }
+
     /**
      * @return byte array from the key and parameters
      */
@@ -153,7 +158,7 @@ public class WrapperReEncryptionKey {
         }
         ByteArrayOutputStream keyData = new ByteArrayOutputStream();
         try {
-            keyData.write(algorithm.toString().getBytes());
+            keyData.write(algorithm.getClass().getCanonicalName().getBytes());
             keyData.write(DELIMITER);
             Base64.encode(key.toByteArray(), keyData);
             keyData.write(DELIMITER);
@@ -161,29 +166,11 @@ public class WrapperReEncryptionKey {
             if (encryptedRandomKey != null) {
                 keyData.write(DELIMITER);
                 Base64.encode(encryptedRandomKey, keyData);
-                keyData.write(DELIMITER);
-                Base64.encode(BigInteger.valueOf(randomKeyLength).toByteArray(), keyData);
             }
         } catch (IOException e) {
             throw new CommonException(e);
         }
         return keyData.toByteArray();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        WrapperReEncryptionKey that = (WrapperReEncryptionKey) o;
-        return Objects.equals(key, that.key) &&
-                Objects.equals(ecSpec, that.ecSpec) &&
-                Arrays.equals(encryptedRandomKey, that.encryptedRandomKey) &&
-                Objects.equals(randomKeyLength, that.randomKeyLength);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(key, ecSpec, encryptedRandomKey, randomKeyLength);
     }
 
     /**
@@ -207,17 +194,18 @@ public class WrapperReEncryptionKey {
         }
 
         byte[] encryptedRandomKey = null;
-        Integer randomKeyLength = null;
         if (indices[2] != 0) {
+            if (indices[3] == 0) {
+                indices[3] = data.length;
+            }
             encryptedRandomKey = Base64.decode(
                     Arrays.copyOfRange(data, indices[2] + DELIMITER.length, indices[3]));
-            randomKeyLength = new BigInteger(Base64.decode(
-                    Arrays.copyOfRange(data, indices[3] + DELIMITER.length, data.length))).intValue();
         } else {
             indices[2] = data.length;
         }
-        EncryptionAlgorithm algorithm = EncryptionAlgorithm.valueOf(
-                new String(Arrays.copyOf(data, indices[0])));
+        String algorithmClass = new String(Arrays.copyOf(data, indices[0]));
+        EncryptionAlgorithm algorithm = EncryptionAlgorithmUtils
+                .getEncryptionAlgorithmByClass(algorithmClass);
         byte[] keyData = Base64.decode(
                 Arrays.copyOfRange(data, indices[0] + DELIMITER.length, indices[1]));
         byte[] ecSpecData = Base64.decode(
@@ -226,7 +214,6 @@ public class WrapperReEncryptionKey {
         X9ECParameters ecParameters = X9ECParameters.getInstance(param);
         ECParameterSpec ecSpec = KeyUtils.ecParametersToSpec(ecParameters);
 
-        return new WrapperReEncryptionKey(
-                algorithm, keyData, ecSpec, encryptedRandomKey, randomKeyLength);
+        return new WrapperReEncryptionKey(algorithm, keyData, ecSpec, encryptedRandomKey);
     }
 }

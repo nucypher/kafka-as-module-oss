@@ -1,20 +1,20 @@
 package com.nucypher.kafka.clients
 
-import com.nucypher.kafka.TestConstants
+import com.nucypher.crypto.EncryptionAlgorithm
+import com.nucypher.kafka.TestUtils
 import com.nucypher.kafka.clients.decrypt.AesStructuredMessageDeserializer
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer
 import com.nucypher.kafka.clients.granular.StructuredDataAccessorStub
-import com.nucypher.kafka.utils.EncryptionAlgorithm
 import com.nucypher.kafka.utils.KeyUtils
+import com.nucypher.kafka.utils.SubkeyGenerator
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
-import spock.lang.Ignore
 import spock.lang.Specification
 
 import java.security.KeyPair
-import java.security.PublicKey
+import java.security.PrivateKey
 
-import static com.nucypher.kafka.TestConstants.PEM
+import static TestUtils.PEM
 
 /**
  * Test for {@link AesStructuredMessageSerializer}
@@ -22,7 +22,8 @@ import static com.nucypher.kafka.TestConstants.PEM
  */
 class StructuredMessageSerializeDeserializeSpec extends Specification {
 
-    static final EncryptionAlgorithm ALGORITHM = TestConstants.ENCRYPTION_ALGORITHM
+    static final Class<? extends EncryptionAlgorithm> ALGORITHM =
+            TestUtils.ENCRYPTION_ALGORITHM_CLASS
 
     def 'simple encryption and decryption'() {
         setup: 'initialization'
@@ -91,8 +92,7 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         ]
     }
 
-    @Ignore
-    def 'encryption and decryption with different keys'() {
+    def 'encryption and decryption using derived keys'() {
         setup: 'initialization'
         String topic = "topic"
         String message = "{\"a\":\"a\", \"b\":\"b\"}"
@@ -100,21 +100,23 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         File file = new File(this.getClass().getClassLoader()
                 .getResource(PEM).getFile())
         KeyPair keyPair = KeyUtils.getECKeyPairFromPEM(file.getAbsolutePath())
-        PublicKey publicKey2 = KeyUtils.generateECKeyPair(ALGORITHM, "P-521")
-                .getKeyPair().getPublic()
+        PrivateKey privateKeyA = SubkeyGenerator.deriveKey(keyPair.private, topic + "-a")
 
         AesStructuredMessageSerializer<String> serializer =
                 new AesStructuredMessageSerializer<>(
                         new StringSerializer(),
                         ALGORITHM,
-                        keyPair.public,
-                        StructuredDataAccessorStub.class
+                        keyPair,
+                        StructuredDataAccessorStub.class,
+                        null,
+                        true,
+                        null
                 )
         AesStructuredMessageDeserializer<String> deserializer =
                 new AesStructuredMessageDeserializer<>(
                         new StringDeserializer(),
                         ALGORITHM,
-                        keyPair.private,
+                        privateKeyA,
                         StructuredDataAccessorStub.class
                 )
 

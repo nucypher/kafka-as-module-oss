@@ -1,18 +1,17 @@
 package com.nucypher.kafka.encrypt;
 
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
+import com.nucypher.crypto.EncryptionAlgorithm;
+import com.nucypher.kafka.TestUtils;
 import com.nucypher.kafka.utils.KeyUtils;
-import com.nucypher.kafka.utils.GranularUtils;
 import com.nucypher.kafka.utils.SubkeyGenerator;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.security.PrivateKey;
 import java.security.Key;
 import java.security.KeyPair;
-import java.util.Arrays;
+import java.security.PrivateKey;
 import java.util.Collection;
 
 import static com.nucypher.kafka.utils.KeyType.PRIVATE;
@@ -41,11 +40,7 @@ public class DataEncryptionKeyManagerTest {
      */
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
-        Object[][] data = new Object[][]{
-                {EncryptionAlgorithm.BBS98},
-                {EncryptionAlgorithm.ELGAMAL}
-        };
-        return Arrays.asList(data);
+        return TestUtils.getEncryptionAlgorithms();
     }
 
     /**
@@ -60,8 +55,9 @@ public class DataEncryptionKeyManagerTest {
                                           String from,
                                           String to,
                                           boolean isComplex) throws Exception {
-        WrapperReEncryptionKey reKey = KeyUtils.generateReEncryptionKey(
-                algorithm, from, to, !isComplex ? PRIVATE : PUBLIC, null);
+        ReEncryptionKeyManager reEncryptionKeyManager = new ReEncryptionKeyManager(algorithm);
+        WrapperReEncryptionKey reKey = reEncryptionKeyManager.generateReEncryptionKey(
+                from, to, !isComplex ? PRIVATE : PUBLIC, null);
         KeyPair keyPairFrom = KeyUtils.getECKeyPairFromPEM(from);
         KeyPair keyPairTo = KeyUtils.getECKeyPairFromPEM(to);
 

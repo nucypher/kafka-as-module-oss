@@ -1,10 +1,11 @@
 package com.nucypher.kafka.clients.decrypt;
 
+import com.nucypher.crypto.EncryptionAlgorithm;
 import com.nucypher.kafka.cipher.AesGcmCipher;
 import com.nucypher.kafka.clients.MessageHandler;
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
+import com.nucypher.kafka.utils.EncryptionAlgorithmUtils;
 import com.nucypher.kafka.utils.KeyUtils;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -41,29 +42,31 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
     }
 
     /**
-     * @param deserializer Kafka deserializer
-     * @param algorithm    encryption algorithm
-     * @param privateKey   EC private key
+     * @param deserializer   Kafka deserializer
+     * @param algorithmClass class of encryption algorithm
+     * @param privateKey     EC private key
      */
     public AesMessageDeserializer(Deserializer<T> deserializer,
-                                  EncryptionAlgorithm algorithm,
+                                  Class<? extends EncryptionAlgorithm> algorithmClass,
                                   PrivateKey privateKey) {
-        this(deserializer, algorithm, privateKey, null);
+        this(deserializer, algorithmClass, privateKey, null);
     }
 
     /**
      * Common constructor
      *
      * @param deserializer            Kafka deserializer
-     * @param algorithm               encryption algorithm
+     * @param algorithmClass          class of encryption algorithm
      * @param privateKey              EC private key
      * @param decryptionCacheCapacity decryption cache capacity
      */
     public AesMessageDeserializer(Deserializer<T> deserializer,
-                                  EncryptionAlgorithm algorithm,
+                                  Class<? extends EncryptionAlgorithm> algorithmClass,
                                   PrivateKey privateKey,
                                   Integer decryptionCacheCapacity) {
         this.deserializer = deserializer;
+        EncryptionAlgorithm algorithm =
+                EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                 algorithm, privateKey, decryptionCacheCapacity);
         AesGcmCipher cipher = new AesGcmCipher();
@@ -88,7 +91,7 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
 
             Integer cacheCapacity = config.getInt(
                     AesMessageDeserializerConfig.CACHE_DECRYPTION_CAPACITY_CONFIG);
-            EncryptionAlgorithm algorithm = EncryptionAlgorithm.valueOf(
+            EncryptionAlgorithm algorithm = EncryptionAlgorithmUtils.getEncryptionAlgorithm(
                     config.getString(AesMessageDeserializerConfig.ALGORITHM_CONFIG));
             DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                     algorithm, privateKey, cacheCapacity);

@@ -1,5 +1,6 @@
 package com.nucypher.kafka.clients.encrypt;
 
+import com.nucypher.crypto.EncryptionAlgorithm;
 import com.nucypher.kafka.cipher.AesGcmCipher;
 import com.nucypher.kafka.clients.MessageHandler;
 import com.nucypher.kafka.clients.granular.DataFormat;
@@ -7,7 +8,7 @@ import com.nucypher.kafka.clients.granular.StructuredDataAccessor;
 import com.nucypher.kafka.clients.granular.StructuredMessageHandler;
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
-import com.nucypher.kafka.utils.EncryptionAlgorithm;
+import com.nucypher.kafka.utils.EncryptionAlgorithmUtils;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.serialization.Serializer;
 
@@ -41,50 +42,50 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      * Constructor for encrypting all fields
      *
      * @param serializer        Kafka serializer
-     * @param algorithm         encryption algorithm
+     * @param algorithmClass    class of encryption algorithm
      * @param publicKey         EC public key
      * @param dataAccessorClass data accessor class
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
-            EncryptionAlgorithm algorithm,
+            Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
             Class<? extends StructuredDataAccessor> dataAccessorClass) {
-        this(serializer, algorithm, publicKey, dataAccessorClass, null);
+        this(serializer, algorithmClass, publicKey, dataAccessorClass, null);
     }
 
     /**
      * Constructor for encrypting all fields
      *
-     * @param serializer Kafka serializer
-     * @param algorithm  encryption algorithm
-     * @param publicKey  EC public key
-     * @param format     data format
+     * @param serializer     Kafka serializer
+     * @param algorithmClass class of encryption algorithm
+     * @param publicKey      EC public key
+     * @param format         data format
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
-            EncryptionAlgorithm algorithm,
+            Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
             DataFormat format) {
-        this(serializer, algorithm, publicKey, format.getAccessorClass(), null);
+        this(serializer, algorithmClass, publicKey, format.getAccessorClass(), null);
     }
 
     /**
      * Constructor for encrypting specified fields
      *
      * @param serializer        Kafka serializer
-     * @param algorithm         encryption algorithm
+     * @param algorithmClass    class of encryption algorithm
      * @param publicKey         EC public key
      * @param dataAccessorClass data accessor class
      * @param fields            collection of fields to encryption
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
-            EncryptionAlgorithm algorithm,
+            Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
             Class<? extends StructuredDataAccessor> dataAccessorClass,
             Set<String> fields) {
-        super(serializer, algorithm, publicKey);
+        super(serializer, algorithmClass, publicKey);
         try {
             accessor = dataAccessorClass.newInstance();
         } catch (InstantiationException | IllegalAccessException e) {
@@ -97,26 +98,26 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
     /**
      * Constructor for encrypting specified fields
      *
-     * @param serializer Kafka serializer
-     * @param algorithm  encryption algorithm
-     * @param publicKey  EC public key
-     * @param format     data format
-     * @param fields     collection of fields to encryption
+     * @param serializer     Kafka serializer
+     * @param algorithmClass class of encryption algorithm
+     * @param publicKey      EC public key
+     * @param format         data format
+     * @param fields         collection of fields to encryption
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
-            EncryptionAlgorithm algorithm,
+            Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
             DataFormat format,
             Set<String> fields) {
-        this(serializer, algorithm, publicKey, format.getAccessorClass(), fields);
+        this(serializer, algorithmClass, publicKey, format.getAccessorClass(), fields);
     }
 
     /**
      * Common constructor
      *
      * @param serializer              Kafka serializer
-     * @param algorithm               encryption algorithm
+     * @param algorithmClass          class of encryption algorithm
      * @param keyPair                 EC key pair
      * @param dataAccessorClass       data accessor class
      * @param fields                  collection of fields to encryption
@@ -125,7 +126,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
-            EncryptionAlgorithm algorithm,
+            Class<? extends EncryptionAlgorithm> algorithmClass,
             KeyPair keyPair,
             Class<? extends StructuredDataAccessor> dataAccessorClass,
             Set<String> fields,
@@ -133,6 +134,8 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
             Integer encryptionCacheCapacity) {
         this.serializer = serializer;
         SecureRandom secureRandom = new SecureRandom();
+        EncryptionAlgorithm algorithm =
+                EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                 algorithm, keyPair, secureRandom, useDerivedKeys, encryptionCacheCapacity);
         AesGcmCipher cipher = new AesGcmCipher();

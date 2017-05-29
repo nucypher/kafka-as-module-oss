@@ -57,7 +57,7 @@ Option                                       Description
 Other parameters
 Option                                                    Description
 ------                                                    -----------
---alg, --algorithm <[bbs98, elgamal]>                     encryption algorithm (default: ELGAMAL)
+--alg, --algorithm <[BBS98, ElGamal]>                     encryption algorithm (default: ElGamal)
 --cac, --channel-accessor-class <String>                  accessor class name (only for channels with granular
                                                             encryption type or keys with fields)
 --cdf, --channel-data-format <[avro, avro_schema_less,    data format (only for channels with granular encryption

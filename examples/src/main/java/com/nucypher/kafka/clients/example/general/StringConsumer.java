@@ -1,6 +1,6 @@
 package com.nucypher.kafka.clients.example.general;
 
-import com.nucypher.kafka.TestConstants;
+import com.nucypher.kafka.TestUtils;
 import com.nucypher.kafka.clients.decrypt.AesMessageDeserializer;
 import com.nucypher.kafka.clients.decrypt.AesStructuredMessageDeserializer;
 import com.nucypher.kafka.clients.example.utils.JaasUtils;
@@ -73,7 +73,7 @@ public class StringConsumer {
                         new StringDeserializer(),
                         new AesMessageDeserializer<>(
                                 new StringDeserializer(),
-                                TestConstants.ENCRYPTION_ALGORITHM,
+                                TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                                 privateKey
                         )
                 );
@@ -84,7 +84,7 @@ public class StringConsumer {
                         new StringDeserializer(),
                         new AesStructuredMessageDeserializer<>(
                                 new StringDeserializer(),
-                                TestConstants.ENCRYPTION_ALGORITHM,
+                                TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                                 privateKey,
                                 DataFormat.JSON
                         )
