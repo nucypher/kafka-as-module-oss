@@ -44,14 +44,16 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      * @param serializer        Kafka serializer
      * @param algorithmClass    class of encryption algorithm
      * @param publicKey         EC public key
+     * @param maxUsingDEK       max number of using each DEK
      * @param dataAccessorClass data accessor class
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
             Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
+            Integer maxUsingDEK,
             Class<? extends StructuredDataAccessor> dataAccessorClass) {
-        this(serializer, algorithmClass, publicKey, dataAccessorClass, null);
+        this(serializer, algorithmClass, publicKey, maxUsingDEK, dataAccessorClass, null);
     }
 
     /**
@@ -60,14 +62,16 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      * @param serializer     Kafka serializer
      * @param algorithmClass class of encryption algorithm
      * @param publicKey      EC public key
+     * @param maxUsingDEK    max number of using each DEK
      * @param format         data format
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
             Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
+            Integer maxUsingDEK,
             DataFormat format) {
-        this(serializer, algorithmClass, publicKey, format.getAccessorClass(), null);
+        this(serializer, algorithmClass, publicKey, maxUsingDEK, format.getAccessorClass(), null);
     }
 
     /**
@@ -76,6 +80,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      * @param serializer        Kafka serializer
      * @param algorithmClass    class of encryption algorithm
      * @param publicKey         EC public key
+     * @param maxUsingDEK       max number of using each DEK
      * @param dataAccessorClass data accessor class
      * @param fields            collection of fields to encryption
      */
@@ -83,9 +88,10 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
             Serializer<T> serializer,
             Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
+            Integer maxUsingDEK,
             Class<? extends StructuredDataAccessor> dataAccessorClass,
             Set<String> fields) {
-        super(serializer, algorithmClass, publicKey);
+        super(serializer, algorithmClass, publicKey, maxUsingDEK);
         try {
             accessor = dataAccessorClass.newInstance();
         } catch (InstantiationException | IllegalAccessException e) {
@@ -101,6 +107,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      * @param serializer     Kafka serializer
      * @param algorithmClass class of encryption algorithm
      * @param publicKey      EC public key
+     * @param maxUsingDEK    max number of using each DEK
      * @param format         data format
      * @param fields         collection of fields to encryption
      */
@@ -108,9 +115,10 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
             Serializer<T> serializer,
             Class<? extends EncryptionAlgorithm> algorithmClass,
             PublicKey publicKey,
+            Integer maxUsingDEK,
             DataFormat format,
             Set<String> fields) {
-        this(serializer, algorithmClass, publicKey, format.getAccessorClass(), fields);
+        this(serializer, algorithmClass, publicKey, maxUsingDEK, format.getAccessorClass(), fields);
     }
 
     /**
@@ -119,6 +127,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      * @param serializer              Kafka serializer
      * @param algorithmClass          class of encryption algorithm
      * @param keyPair                 EC key pair
+     * @param maxUsingDEK             max number of using each DEK
      * @param dataAccessorClass       data accessor class
      * @param fields                  collection of fields to encryption
      * @param useDerivedKeys          use derived keys
@@ -128,6 +137,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
             Serializer<T> serializer,
             Class<? extends EncryptionAlgorithm> algorithmClass,
             KeyPair keyPair,
+            Integer maxUsingDEK,
             Class<? extends StructuredDataAccessor> dataAccessorClass,
             Set<String> fields,
             boolean useDerivedKeys,
@@ -137,7 +147,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
         EncryptionAlgorithm algorithm =
                 EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
-                algorithm, keyPair, secureRandom, useDerivedKeys, encryptionCacheCapacity);
+                algorithm, keyPair, secureRandom, useDerivedKeys, maxUsingDEK, encryptionCacheCapacity);
         AesGcmCipher cipher = new AesGcmCipher();
         messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
         try {
@@ -182,12 +192,13 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
     @Override
     protected DataEncryptionKeyManager getKeyManager(AbstractConfig config,
                                                      KeyPair keyPair,
+                                                     Integer maxUsingDEK,
                                                      Integer cacheCapacity,
                                                      EncryptionAlgorithm algorithm,
                                                      SecureRandom secureRandom) {
         boolean useDerivedKeys = config.getBoolean(
                 AesStructuredMessageSerializerConfig.USE_DERIVED_KEYS_CONFIG);
         return new DataEncryptionKeyManager(
-                algorithm, keyPair, secureRandom, useDerivedKeys, cacheCapacity);
+                algorithm, keyPair, secureRandom, useDerivedKeys, maxUsingDEK, cacheCapacity);
     }
 }

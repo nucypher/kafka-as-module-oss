@@ -36,7 +36,8 @@ class AesMessageEncryptorDecryptorSpec extends Specification {
                 new AesMessageSerializer<>(
                         new StringSerializer(),
                         ALGORITHM,
-                        keyPair.public
+                        keyPair.public,
+                        null
                 )
 
         AesMessageDeserializer<String> messageDeserializer =

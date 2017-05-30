@@ -17,6 +17,7 @@ import java.util.Collection;
 import static com.nucypher.kafka.utils.KeyType.PRIVATE;
 import static com.nucypher.kafka.utils.KeyType.PUBLIC;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 /**
  * Test for {@link DataEncryptionKeyManager}
@@ -62,7 +63,11 @@ public class DataEncryptionKeyManagerTest {
         KeyPair keyPairTo = KeyUtils.getECKeyPairFromPEM(to);
 
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
-                algorithm, keyPairTo.getPrivate(), keyPairFrom.getPublic(), false);
+                algorithm,
+                keyPairTo.getPrivate(),
+                keyPairFrom.getPublic(),
+                false,
+                null);
         Key key = keyManager.getDEK("");
 
         byte[] encrypted = keyManager.encryptDEK(key);
@@ -117,12 +122,41 @@ public class DataEncryptionKeyManagerTest {
         PrivateKey privateKey = SubkeyGenerator.deriveKey(keyPair.getPrivate(), data);
 
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
-                algorithm, keyPair.getPrivate(), keyPair.getPublic(), true);
-        Key key = keyManager.getDEK("");
+                algorithm,
+                keyPair.getPrivate(),
+                keyPair.getPublic(),
+                true,
+                null);
+        Key key = keyManager.getDEK(data);
         byte[] encrypted = keyManager.encryptDEK(key, data);
 
         keyManager = new DataEncryptionKeyManager(algorithm, privateKey);
         Key decrypted = keyManager.decryptEDEK(encrypted, false);
         assertEquals(key, decrypted);
+    }
+
+    /**
+     * Test changing DEK after exceeding max used
+     */
+    @Test
+    public void testChangingDEK() throws Exception {
+        String privateKey = getClass().getResource("/private-key-prime256v1-1.pem").getPath();
+        String data = "data";
+        KeyPair keyPair = KeyUtils.getECKeyPairFromPEM(privateKey);
+        DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
+                null, null, keyPair.getPublic(), false, 2);
+        Key key1 = keyManager.getDEK(data);
+        Key key2 = keyManager.getDEK(data);
+        assertEquals(key1, key2);
+        Key key3 = keyManager.getDEK(data);
+        assertNotEquals(key1, key3);
+
+        keyManager = new DataEncryptionKeyManager(
+                null, null, keyPair.getPublic(), false, null);
+        key1 = keyManager.getDEK(data);
+        key2 = keyManager.getDEK(data);
+        assertEquals(key1, key2);
+        key3 = keyManager.getDEK(data);
+        assertEquals(key1, key3);
     }
 }

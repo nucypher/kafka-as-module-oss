@@ -59,6 +59,7 @@ public class AvroSchemaLessProducer {
                     new KafkaAvroSerializer(),
                     TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                     publicKey,
+                    null,
                     DataFormat.AVRO_SCHEMA_LESS
             );
             Map<String, Object> configs = new HashMap<>();

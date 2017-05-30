@@ -47,16 +47,18 @@ public class AesMessageSerializer<T> implements Serializer<T> {
      * @param serializer     Kafka serializer
      * @param algorithmClass class of encryption algorithm
      * @param publicKey      public key
+     * @param maxUsingDEK    max number of using each DEK
      */
     public AesMessageSerializer(Serializer<T> serializer,
                                 Class<? extends EncryptionAlgorithm> algorithmClass,
-                                PublicKey publicKey) {
+                                PublicKey publicKey,
+                                Integer maxUsingDEK) {
         this.serializer = serializer;
         SecureRandom secureRandom = new SecureRandom();
         EncryptionAlgorithm algorithm =
                 EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager =
-                new DataEncryptionKeyManager(algorithm, publicKey, secureRandom);
+                new DataEncryptionKeyManager(algorithm, publicKey, secureRandom, maxUsingDEK);
         AesGcmCipher cipher = new AesGcmCipher();
         messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
         isConfigured = true;
@@ -66,20 +68,23 @@ public class AesMessageSerializer<T> implements Serializer<T> {
     /**
      * Common constructor
      *
-     * @param serializer     Kafka serializer
-     * @param algorithmClass class of encryption algorithm
-     * @param publicKey      public key
+     * @param serializer              Kafka serializer
+     * @param algorithmClass          class of encryption algorithm
+     * @param publicKey               public key
+     * @param maxUsingDEK             max number of using each DEK
+     * @param encryptionCacheCapacity encryption cache capacity
      */
     public AesMessageSerializer(Serializer<T> serializer,
                                 Class<? extends EncryptionAlgorithm> algorithmClass,
                                 PublicKey publicKey,
+                                Integer maxUsingDEK,
                                 Integer encryptionCacheCapacity) {
         this.serializer = serializer;
         SecureRandom secureRandom = new SecureRandom();
         EncryptionAlgorithm algorithm =
                 EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
-                algorithm, publicKey, secureRandom, encryptionCacheCapacity);
+                algorithm, publicKey, secureRandom, maxUsingDEK, encryptionCacheCapacity);
         AesGcmCipher cipher = new AesGcmCipher();
         messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
         isConfigured = true;
@@ -100,13 +105,15 @@ public class AesMessageSerializer<T> implements Serializer<T> {
                 throw new CommonException(e);
             }
 
+            Integer maxUsingDEK = config.getInt(
+                    AesMessageSerializerConfig.MAX_USING_DEK_CONFIG);
             Integer cacheCapacity = config.getInt(
                     AesMessageSerializerConfig.CACHE_ENCRYPTION_CAPACITY_CONFIG);
             EncryptionAlgorithm algorithm = EncryptionAlgorithmUtils.getEncryptionAlgorithm(
                     config.getString(AesMessageSerializerConfig.ALGORITHM_CONFIG));
             SecureRandom secureRandom = new SecureRandom();
-            DataEncryptionKeyManager keyManager =
-                    getKeyManager(config, keyPair, cacheCapacity, algorithm, secureRandom);
+            DataEncryptionKeyManager keyManager = getKeyManager(
+                    config, keyPair, maxUsingDEK, cacheCapacity, algorithm, secureRandom);
             AesGcmCipher cipher = new AesGcmCipher();
             messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
 
@@ -129,6 +136,7 @@ public class AesMessageSerializer<T> implements Serializer<T> {
      *
      * @param config        configuration
      * @param keyPair       key pair
+     * @param maxUsingDEK   max number of using each DEK
      * @param cacheCapacity cache capacity
      * @param algorithm     algorithm
      * @param secureRandom  secure random
@@ -136,11 +144,12 @@ public class AesMessageSerializer<T> implements Serializer<T> {
      */
     protected DataEncryptionKeyManager getKeyManager(AbstractConfig config,
                                                      KeyPair keyPair,
+                                                     Integer maxUsingDEK,
                                                      Integer cacheCapacity,
                                                      EncryptionAlgorithm algorithm,
                                                      SecureRandom secureRandom) {
         return new DataEncryptionKeyManager(
-                algorithm, keyPair.getPublic(), secureRandom, cacheCapacity);
+                algorithm, keyPair.getPublic(), secureRandom, maxUsingDEK, cacheCapacity);
     }
 
     @Override

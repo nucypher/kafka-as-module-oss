@@ -59,6 +59,7 @@ public class AvroProducer {
                             new ByteArraySerializer(),
                             TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                             publicKey,
+                            null,
                             DataFormat.AVRO
                     )
             );

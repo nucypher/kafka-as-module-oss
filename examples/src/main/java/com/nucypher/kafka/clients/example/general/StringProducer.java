@@ -84,7 +84,8 @@ public class StringProducer {
                         new AesMessageSerializer<>(
                                 new StringSerializer(),
                                 TestUtils.ENCRYPTION_ALGORITHM_CLASS,
-                                publicKey
+                                publicKey,
+                                null
                         )
                 );
             case "granular":
@@ -96,6 +97,7 @@ public class StringProducer {
                                 new StringSerializer(),
                                 TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                                 publicKey,
+                                null,
                                 DataFormat.JSON,
                                 fields
                         )

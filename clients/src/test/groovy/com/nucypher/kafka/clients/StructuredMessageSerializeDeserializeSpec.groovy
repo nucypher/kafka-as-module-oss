@@ -38,6 +38,7 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
                         new StringSerializer(),
                         ALGORITHM,
                         keyPair.public,
+                        null,
                         StructuredDataAccessorStub.class
                 )
         AesStructuredMessageDeserializer<String> deserializer =
@@ -65,6 +66,7 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
                 new StringSerializer(),
                 ALGORITHM,
                 keyPair.public,
+                null,
                 StructuredDataAccessorStub.class,
                 ["a"].toSet()
         )
@@ -107,6 +109,7 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
                         new StringSerializer(),
                         ALGORITHM,
                         keyPair,
+                        null,
                         StructuredDataAccessorStub.class,
                         null,
                         true,

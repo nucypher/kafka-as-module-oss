@@ -47,6 +47,7 @@ public class JsonProducer {
                             new StringSerializer(),
                             TestUtils.ENCRYPTION_ALGORITHM_CLASS,
                             publicKey,
+                            null,
                             DataFormat.JSON
                     )
             );

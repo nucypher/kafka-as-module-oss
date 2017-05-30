@@ -27,6 +27,10 @@ public class AesMessageSerializerConfig extends MessageSerDeConfig {
     public static final String CACHE_ENCRYPTION_CAPACITY_DOC = "Encryption cache capacity";
     public static final int CACHE_ENCRYPTION_CAPACITY_DEFAULT = 200000;
 
+    public static final String MAX_USING_DEK_CONFIG = "encryption.dek.max.using";
+    public static final String MAX_USING_DEK_DOC = "Max number of using each DEK";
+    public static final int MAX_USING_DEK_DEFAULT = 1000;
+
     private static final ConfigDef CONFIG;
 
     static {
@@ -49,7 +53,12 @@ public class AesMessageSerializerConfig extends MessageSerDeConfig {
                         ConfigDef.Type.INT,
                         CACHE_ENCRYPTION_CAPACITY_DEFAULT,
                         ConfigDef.Importance.LOW,
-                        CACHE_ENCRYPTION_CAPACITY_DOC);
+                        CACHE_ENCRYPTION_CAPACITY_DOC)
+                .define(MAX_USING_DEK_CONFIG,
+                        ConfigDef.Type.INT,
+                        MAX_USING_DEK_DEFAULT,
+                        ConfigDef.Importance.LOW,
+                        MAX_USING_DEK_DOC);
     }
 
     public AesMessageSerializerConfig(Map<?, ?> props) {

@@ -50,8 +50,8 @@ public class DataEncryptionKeyManager {
     private PublicKey publicKey;
     private Map<String, PublicKey> publicKeyMap = new HashMap<>();
     private SecureRandom secureRandom;
-    //TODO DEKs changing
-    private Map<String, Key> deks = new HashMap<>();
+    private Integer maxUsingDEK;
+    private Map<String, KeyWrapper> deks = new HashMap<>();
     private boolean useDerivedKeys;
     private PrivateKey privateKey;
 
@@ -134,6 +134,33 @@ public class DataEncryptionKeyManager {
         }
     }
 
+    private static class KeyWrapper {
+        private Key dek;
+        private int usedTimes;
+
+        public KeyWrapper(Key dek) {
+            this.dek = dek;
+            usedTimes = 0;
+        }
+
+        public void updateDEK(Key dek) {
+            this.dek = dek;
+            usedTimes = 0;
+        }
+
+        public Key getDEK() {
+            return dek;
+        }
+
+        public int getUsedTimes() {
+            return usedTimes;
+        }
+
+        public void incrementUsedTimes() {
+            usedTimes++;
+        }
+    }
+
     /**
      * Constructor for re-encryption
      */
@@ -156,11 +183,13 @@ public class DataEncryptionKeyManager {
      * @param algorithm    encryption algorithm
      * @param publicKey    EC public key
      * @param secureRandom secure random
+     * @param maxUsingDEK  max number of using each DEK
      */
     public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
                                     PublicKey publicKey,
-                                    SecureRandom secureRandom) {
-        this(algorithm, null, publicKey, secureRandom, false,
+                                    SecureRandom secureRandom,
+                                    Integer maxUsingDEK) {
+        this(algorithm, null, publicKey, secureRandom, false, maxUsingDEK,
                 null, null, null);
     }
 
@@ -170,13 +199,15 @@ public class DataEncryptionKeyManager {
      * @param algorithm               encryption algorithm
      * @param publicKey               EC public key
      * @param secureRandom            secure random
+     * @param maxUsingDEK             max number of using each DEK
      * @param encryptionCacheCapacity encryption cache capacity
      */
     public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
                                     PublicKey publicKey,
                                     SecureRandom secureRandom,
+                                    Integer maxUsingDEK,
                                     Integer encryptionCacheCapacity) {
-        this(algorithm, null, publicKey, secureRandom, false,
+        this(algorithm, null, publicKey, secureRandom, false, maxUsingDEK,
                 encryptionCacheCapacity, null, null);
     }
 
@@ -187,15 +218,17 @@ public class DataEncryptionKeyManager {
      * @param keyPair                 key pair
      * @param secureRandom            secure random
      * @param useDerivedKeys          use derived keys
+     * @param maxUsingDEK             max number of using each DEK
      * @param encryptionCacheCapacity encryption cache capacity
      */
     public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
                                     KeyPair keyPair,
                                     SecureRandom secureRandom,
                                     boolean useDerivedKeys,
+                                    Integer maxUsingDEK,
                                     Integer encryptionCacheCapacity) {
         this(algorithm, keyPair.getPrivate(), keyPair.getPublic(), secureRandom, useDerivedKeys,
-                encryptionCacheCapacity, null, null);
+                maxUsingDEK, encryptionCacheCapacity, null, null);
     }
 
     /**
@@ -219,7 +252,7 @@ public class DataEncryptionKeyManager {
                                     PrivateKey privateKey,
                                     Integer decryptionCacheCapacity) {
         this(algorithm, privateKey, null, null, false,
-                null, null, decryptionCacheCapacity);
+                null, null, null, decryptionCacheCapacity);
     }
 
     /**
@@ -229,12 +262,14 @@ public class DataEncryptionKeyManager {
      * @param privateKey     EC private key
      * @param publicKey      EC public key
      * @param useDerivedKeys use derived keys
+     * @param maxUsingDEK    max number of using each DEK
      */
     public DataEncryptionKeyManager(EncryptionAlgorithm algorithm,
                                     PrivateKey privateKey,
                                     PublicKey publicKey,
-                                    boolean useDerivedKeys) {
-        this(algorithm, privateKey, publicKey, new SecureRandom(), useDerivedKeys,
+                                    boolean useDerivedKeys,
+                                    Integer maxUsingDEK) {
+        this(algorithm, privateKey, publicKey, new SecureRandom(), useDerivedKeys, maxUsingDEK,
                 null, null, null);
     }
 
@@ -246,6 +281,7 @@ public class DataEncryptionKeyManager {
      * @param publicKey                 EC public key
      * @param secureRandom              secure random
      * @param useDerivedKeys            use derived keys
+     * @param maxUsingDEK               max number of using each DEK
      * @param encryptionCacheCapacity   encryption cache capacity
      * @param reEncryptionCacheCapacity re-encryption cache capacity
      * @param decryptionCacheCapacity   decryption cache capacity
@@ -255,6 +291,7 @@ public class DataEncryptionKeyManager {
                                     PublicKey publicKey,
                                     SecureRandom secureRandom,
                                     boolean useDerivedKeys,
+                                    Integer maxUsingDEK,
                                     Integer encryptionCacheCapacity,
                                     Integer reEncryptionCacheCapacity,
                                     Integer decryptionCacheCapacity) {
@@ -263,6 +300,7 @@ public class DataEncryptionKeyManager {
         this.publicKey = publicKey;
         this.secureRandom = secureRandom;
         this.useDerivedKeys = useDerivedKeys;
+        this.maxUsingDEK = maxUsingDEK;
         this.encryptionCacheCapacity = encryptionCacheCapacity;
         this.reEncryptionCacheCapacity = reEncryptionCacheCapacity;
         this.decryptionCacheCapacity = decryptionCacheCapacity;
@@ -372,13 +410,20 @@ public class DataEncryptionKeyManager {
      * @return Data Encryption Key
      */
     public Key getDEK(String data) {
-        Key dek = deks.get(data);
-        if (dek == null) {
-            int size = KeyUtils.getMessageLength(((ECPublicKey) publicKey).getParameters());
-            dek = AESKeyGenerators.generateDEK(size);
-            deks.put(data, dek);
+        KeyWrapper keyWrapper = deks.get(data);
+        int size = KeyUtils.getMessageLength(((ECPublicKey) publicKey).getParameters());
+        if (keyWrapper == null) {
+            Key dek = AESKeyGenerators.generateDEK(size);
+            keyWrapper = new KeyWrapper(dek);
+            deks.put(data, keyWrapper);
+            LOGGER.debug("Key for data '{}' was generated", data);
+        } else if (maxUsingDEK != null && keyWrapper.getUsedTimes() >= maxUsingDEK) {
+            Key dek = AESKeyGenerators.generateDEK(size);
+            keyWrapper.updateDEK(dek);
+            LOGGER.debug("Key for data '{}' was updated", data);
         }
-        return dek;
+        keyWrapper.incrementUsedTimes();
+        return keyWrapper.getDEK();
     }
 
     /**
