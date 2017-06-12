@@ -5,8 +5,6 @@ This demo shows how to use end-to-end encryption in Kafka
 Before running this demo you should install java features for AES 256 bit. See [main readme](README.md)
 
 # Installation
-Firstly, check out all the dependencies:
-git submodule init; git submodule update.
 Run initialize_project.sh  
 
 # Building
