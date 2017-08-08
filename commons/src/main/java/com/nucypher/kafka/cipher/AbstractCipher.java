@@ -121,6 +121,11 @@ public abstract class AbstractCipher {
             cipherBlock = new byte[cipherBlockSize];
             buffer = new byte[cipher.getOutputSize(cipherBlock.length)];
         }
+        //TODO error when decryption using 16 bytes key
+        if (buffer.length <= 0 || cipherBlock.length <= 0) {
+            throw new CommonException(
+                    "Error while calculating buffer or cipher block length");
+        }
 
         int cipherBytes;
         try {

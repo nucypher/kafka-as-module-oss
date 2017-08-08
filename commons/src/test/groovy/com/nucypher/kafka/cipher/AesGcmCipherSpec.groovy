@@ -13,7 +13,7 @@ class AesGcmCipherSpec extends Specification {
 
     def 'encrypt and decrypt data with AES GCM DEK'() {
         setup: 'initialize'
-        Key key = AESKeyGenerators.generateDEK(32)
+        Key key = AESKeyGenerators.generateDEK(keySize)
         Random random = new Random()
         byte[] originalData = new byte[1024]
         random.nextBytes(originalData)
@@ -27,6 +27,11 @@ class AesGcmCipherSpec extends Specification {
 
         then: 'compare original and decrypted data'
         decryptedData == originalData
+
+        where:
+        // bag using 16 bytes key
+//        keySize << [16, 24, 32]
+        keySize << [24, 32]
     }
 
 }
