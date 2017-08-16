@@ -261,7 +261,7 @@ public final class ReEncryptionKeyManagerTest {
         byte[] byteContent = new byte[KeyUtils.getMessageLength(ecSpec)];
         RANDOM.nextBytes(byteContent);
         byte[] encrypted = algorithm.encrypt(keyPairFrom.getPublic(), byteContent, new SecureRandom());
-        byte[] reEncrypted = keyManager.reEncryptEDEK(encrypted, reKey);
+        byte[] reEncrypted = keyManager.reEncryptEDEK("data", encrypted, reKey);
         byte[] decrypted = keyManager.decryptEDEK(reEncrypted, true).getEncoded();
         assertArrayEquals(byteContent, decrypted);
     }

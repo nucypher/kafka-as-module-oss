@@ -8,8 +8,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.GranularUtils;
-import org.bouncycastle.util.encoders.Hex;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -51,8 +51,6 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
         if (!root.isObject()) {
             return;
         }
-        CommonException exception = new CommonException(
-                "Field '%s' reserved for array of encrypted fields", ENCRYPTED_FIELD);
         JsonNode encrypted = root.get(ENCRYPTED_FIELD);
         if (encrypted == null || encrypted.isNull()) {
             encryptedNode = MAPPER.createArrayNode();
@@ -61,12 +59,14 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
             return;
         }
         if (!encrypted.isArray()) {
-            throw exception;
+            throw new CommonException(
+                    "Field '%s' reserved for array of encrypted fields", ENCRYPTED_FIELD);
         }
         encryptedNode = (ArrayNode) encrypted;
         for (JsonNode encryptedField : encryptedNode) {
             if (!encryptedField.isTextual()) {
-                throw exception;
+                throw new CommonException(
+                        "Field '%s' reserved for array of encrypted fields", ENCRYPTED_FIELD);
             }
         }
     }
@@ -142,7 +142,7 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
 
     private byte[] getBytesWithoutQuotes(byte[] input) {
         byte[] bytes = Arrays.copyOfRange(input, 1, input.length - 1);
-        return Hex.decode(bytes);
+        return DatatypeConverter.parseBase64Binary(new String(bytes));
     }
 
 
@@ -199,7 +199,7 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
 
     @Override
     public void addEncrypted(String field, byte[] data) {
-        JsonNode dataNode = TextNode.valueOf(Hex.toHexString(data));
+        JsonNode dataNode = TextNode.valueOf(DatatypeConverter.printBase64Binary(data));
         getFieldObject(field).setValue(dataNode);
 
         boolean contains = false;

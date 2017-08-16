@@ -35,13 +35,12 @@ class MessageHandlerSpec extends Specification {
         when: 'encrypt message'
         byte[] serialized = messageHandler.encrypt(topic, data)
         Message message = Message.deserialize(serialized)
-        Header header = message.header
 
         then: 'should be message object'
         message.payload == data
-        header.topic == topic
-        header.map.get(KEY_IV) != null
-        header.map.get(KEY_EDEK) == key.getEncoded()
+        message.topic == topic
+        message.getIV() != null
+        message.getEDEK() == key.getEncoded()
         1 * keyManager.getDEK(topic) >> key
         1 * keyManager.encryptDEK(key, topic) >> key.getEncoded()
         1 * cipher.encrypt(data, key, _) >> data
@@ -56,10 +55,7 @@ class MessageHandlerSpec extends Specification {
         random.nextBytes(iv)
         String topic = "TOPIC"
         Key key = DEK
-        Header header = new Header(topic)
-                .add(KEY_EDEK, key.getEncoded())
-                .add(KEY_IV, iv)
-        Message message = new Message(header, data)
+        Message message = new Message(data, topic, key.getEncoded(), iv)
 
         DataEncryptionKeyManager keyManager = Mock()
         AbstractCipher cipher = Mock()
@@ -83,10 +79,7 @@ class MessageHandlerSpec extends Specification {
         random.nextBytes(iv)
         String topic = "TOPIC"
         Key key = DEK
-        Header header = new Header(topic)
-                .add(KEY_EDEK, key.getEncoded())
-                .add(KEY_IV, iv)
-        Message message = new Message(header, data)
+        Message message = new Message(data, topic, key.getEncoded(), iv)
 
         DataEncryptionKeyManager keyManager = Mock()
         WrapperReEncryptionKey reKey = Mock()
@@ -95,30 +88,26 @@ class MessageHandlerSpec extends Specification {
         when: 'simple re-encrypt message'
         byte[] reEncrypted = messageHandler.reEncrypt(message.serialize(), reKey)
         message = Message.deserialize(reEncrypted)
-        header = message.header
 
         then: 'should be right message object'
         message.payload == data
-        header.topic == topic
-        header.map.get(KEY_IV) == iv
-        header.map.get(KEY_EDEK) == key.getEncoded()
-        header.map.get(KEY_IS_COMPLEX) != null
-        !ByteUtils.deserialize(header.map.get(KEY_IS_COMPLEX), Boolean.class)
-        1 * keyManager.reEncryptEDEK(key.getEncoded(), reKey) >> key.getEncoded()
+        message.topic == topic
+        message.getIV() == iv
+        message.getEDEK() == key.getEncoded()
+        !message.isComplex()
+        1 * keyManager.reEncryptEDEK(topic, key.getEncoded(), reKey) >> key.getEncoded()
 
         when: 'complex re-encrypt message'
         reEncrypted = messageHandler.reEncrypt(message.serialize(), reKey)
         message = Message.deserialize(reEncrypted)
-        header = message.header
 
         then: 'should be right message object'
         message.payload == data
-        header.topic == topic
-        header.map.get(KEY_IV) == iv
-        header.map.get(KEY_EDEK) == key.getEncoded()
-        header.map.get(KEY_IS_COMPLEX) != null
-        ByteUtils.deserialize(header.map.get(KEY_IS_COMPLEX), Boolean.class)
-        keyManager.reEncryptEDEK(key.getEncoded(), reKey) >> key.getEncoded()
+        message.topic == topic
+        message.getIV() == iv
+        message.getEDEK() == key.getEncoded()
+        message.isComplex()
+        keyManager.reEncryptEDEK(topic, key.getEncoded(), reKey) >> key.getEncoded()
         reKey.isComplex() >> true
     }
 }

@@ -2,15 +2,10 @@ package com.nucypher.kafka.clients;
 
 import com.nucypher.kafka.cipher.AbstractCipher;
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
-import com.nucypher.kafka.utils.ByteUtils;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
 
 import java.security.Key;
 import java.security.SecureRandom;
-
-import static com.nucypher.kafka.Constants.KEY_EDEK;
-import static com.nucypher.kafka.Constants.KEY_IS_COMPLEX;
-import static com.nucypher.kafka.Constants.KEY_IV;
 
 /**
  * Utils for encryption and decryption of byte array
@@ -77,11 +72,8 @@ public class MessageHandler {
         byte[] iv = new byte[dek.getEncoded().length];
         secureRandom.nextBytes(iv);
 
-        Header header = new Header(topic);
-        header.add(KEY_EDEK, edek).add(KEY_IV, iv);
-
         byte[] encryptedData = cipher.encrypt(data, dek, iv);
-        Message message = new Message(header, encryptedData);
+        Message message = new Message(encryptedData, topic, edek, iv);
         return message.serialize();
     }
 
@@ -93,14 +85,11 @@ public class MessageHandler {
      */
     public byte[] decrypt(byte[] payload) {
         Message message = Message.deserialize(payload);
-        Header header = message.getHeader();
 
         byte[] data = message.getPayload();
-        byte[] edek = header.getMap().get(KEY_EDEK);
-        byte[] iv = header.getMap().get(KEY_IV);
-        byte[] keyTypeBytes = header.getMap().get(KEY_IS_COMPLEX);
-        boolean isComplex = keyTypeBytes == null ? false :
-                ByteUtils.deserialize(keyTypeBytes, Boolean.class);
+        byte[] edek = message.getEDEK();
+        byte[] iv = message.getIV();
+        boolean isComplex = message.isComplex();
 
         Key dek = keyManager.decryptEDEK(edek, isComplex);
         return cipher.decrypt(data, dek, iv);
@@ -115,12 +104,12 @@ public class MessageHandler {
      */
     public byte[] reEncrypt(byte[] payload, WrapperReEncryptionKey reKey) {
         Message message = Message.deserialize(payload);
-        Header header = message.getHeader();
 
-        byte[] edek = header.getMap().get(KEY_EDEK);
-        edek = keyManager.reEncryptEDEK(edek, reKey);
-        header.add(KEY_EDEK, edek);
-        header.add(KEY_IS_COMPLEX, ByteUtils.serialize(reKey.isComplex()));
+        byte[] edek = message.getEDEK();
+        String topic = message.getTopic();
+        edek = keyManager.reEncryptEDEK(topic, edek, reKey);
+        message.setEDEK(edek);
+        message.setComplex(reKey.isComplex());
         return message.serialize();
     }
 

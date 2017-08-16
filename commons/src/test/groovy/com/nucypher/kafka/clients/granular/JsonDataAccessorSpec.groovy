@@ -1,7 +1,7 @@
 package com.nucypher.kafka.clients.granular
 
 import com.nucypher.kafka.errors.CommonException
-import org.bouncycastle.util.encoders.Hex
+import org.bouncycastle.util.encoders.Base64
 import spock.lang.Specification
 
 /**
@@ -21,7 +21,7 @@ class JsonDataAccessorSpec extends Specification {
     private static String partiallyEncryptedComplexObjectJson = "{" +
             "\"a\":[false,true]," +
             "\"b\":{\"b\":10}," +
-            "\"c\":\"${Hex.toHexString("\"c\"".getBytes())}\"," +
+            "\"c\":\"${Base64.toBase64String("\"c\"".getBytes())}\"," +
             "\"d\":null," +
             "\"e\":{\"e\":{\"e\":[{\"e\":\"e\"}]}}," +
             "\"z\":\"z\"," +
@@ -29,20 +29,20 @@ class JsonDataAccessorSpec extends Specification {
             "\"encrypted\":[\"c\"]}"
 
     private static String encryptedComplexObjectJson = "{" +
-            "\"a\":[\"${Hex.toHexString("false".getBytes())}\",true]," +
-            "\"b\":{\"b\":\"${Hex.toHexString("10".getBytes())}\"}," +
-            "\"c\":\"${Hex.toHexString("\"c\"".getBytes())}\"," +
-            "\"d\":\"${Hex.toHexString("null".getBytes())}\"," +
-            "\"e\":{\"e\":{\"e\":[\"${Hex.toHexString("{\"e\":\"e\"}".getBytes())}\"]}}," +
+            "\"a\":[\"${Base64.toBase64String("false".getBytes())}\",true]," +
+            "\"b\":{\"b\":\"${Base64.toBase64String("10".getBytes())}\"}," +
+            "\"c\":\"${Base64.toBase64String("\"c\"".getBytes())}\"," +
+            "\"d\":\"${Base64.toBase64String("null".getBytes())}\"," +
+            "\"e\":{\"e\":{\"e\":[\"${Base64.toBase64String("{\"e\":\"e\"}".getBytes())}\"]}}," +
             "\"z\":\"z\"," +
-            "\"1\":\"${Hex.toHexString("\"1\"".getBytes())}\"," +
+            "\"1\":\"${Base64.toBase64String("\"1\"".getBytes())}\"," +
             "\"encrypted\":[\"c\",\"a.1\",\"b.b\",\"d\",\"e.e.e.1\",\"1\"]}"
 
     private static String arrayJson = "[{\"a\":1},2]"
 
     private static String encryptedArrayJson =
-            "[{\"a\":\"${Hex.toHexString("1".getBytes())}\"}," +
-                    "\"${Hex.toHexString("2".getBytes())}\"]"
+            "[{\"a\":\"${Base64.toBase64String("1".getBytes())}\"}," +
+                    "\"${Base64.toBase64String("2".getBytes())}\"]"
 
     def 'serialization and deserialization'() {
         setup: 'initialization'

@@ -19,9 +19,4 @@ public class Constants implements Serializable {
 	public static final String SYMMETRIC_ALGORITHM = "AES";
 
 	public static final String KEY_FACTORY_ALGORITHM = "ECDSA";
-
-	public static final String KEY_EDEK = "K1";
-	public static final String KEY_IV = "K2";
-	public static final String KEY_IS_COMPLEX = "K3";
-
 }

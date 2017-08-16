@@ -60,6 +60,7 @@ public class DataEncryptionKeyManager {
     private Integer decryptionCacheCapacity;
     private LoadingCache<EncryptionCacheKey, byte[]> encryptionCache;
     private LoadingCache<ReEncryptionCacheKey, byte[]> reEncryptionCache;
+    private Map<String, ReEncryptionQuickCacheValue> reEncryptionQuickCache;
     private LoadingCache<DecryptionCacheKey, Key> decryptionCache;
 
     private static class EncryptionCacheKey {
@@ -107,6 +108,16 @@ public class DataEncryptionKeyManager {
         @Override
         public int hashCode() {
             return Objects.hash(Arrays.hashCode(edek), reKey);
+        }
+    }
+
+    private static class ReEncryptionQuickCacheValue {
+        private byte[] edekFrom;
+        private byte[] edekTo;
+
+        public ReEncryptionQuickCacheValue(byte[] edekFrom, byte[] edekTo) {
+            this.edekFrom = edekFrom;
+            this.edekTo = edekTo;
         }
     }
 
@@ -337,6 +348,7 @@ public class DataEncryptionKeyManager {
                         return reEncryptEDEKOperation(key.edek, key.reKey);
                     }
                 });
+        reEncryptionQuickCache = new HashMap<>();
         LOGGER.debug("Re-encryption cache was initialized using capacity {}", reEncryptionCacheCapacity);
     }
 
@@ -499,20 +511,27 @@ public class DataEncryptionKeyManager {
     /**
      * Re-encrypt EDEK
      *
+     * @param data  data for EDEK quick search
      * @param edek  EDEK to re-encrypt
      * @param reKey re-encryption key
      * @return re-encrypted EDEK
      */
-    public byte[] reEncryptEDEK(byte[] edek, WrapperReEncryptionKey reKey) {
+    public byte[] reEncryptEDEK(String data, byte[] edek, WrapperReEncryptionKey reKey) {
         initializeReEncryptionCache();
+        ReEncryptionQuickCacheValue value = reEncryptionQuickCache.get(data);
+        if (value != null && Arrays.equals(value.edekFrom, edek)) {
+            return value.edekTo;
+        }
         try {
-            return reEncryptionCache.get(new ReEncryptionCacheKey(edek, reKey));
+            byte[] result = reEncryptionCache.get(new ReEncryptionCacheKey(edek, reKey));
+            reEncryptionQuickCache.put(data, new ReEncryptionQuickCacheValue(edek, result));
+            return result;
         } catch (ExecutionException e) {
             throw new CommonException(e.getCause());
         }
     }
 
-    public byte[] reEncryptEDEKOperation(byte[] edek, WrapperReEncryptionKey reKey) {
+    private byte[] reEncryptEDEKOperation(byte[] edek, WrapperReEncryptionKey reKey) {
         EncryptionAlgorithm algorithm = reKey.getAlgorithm();
         BigInteger reEncryptionKey = reKey.getReEncryptionKey();
         ECParameterSpec ecParameterSpec = reKey.getECParameterSpec();

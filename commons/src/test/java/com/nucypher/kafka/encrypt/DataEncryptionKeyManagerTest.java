@@ -71,7 +71,7 @@ public class DataEncryptionKeyManagerTest {
         Key key = keyManager.getDEK("");
 
         byte[] encrypted = keyManager.encryptDEK(key);
-        byte[] reEncrypted = keyManager.reEncryptEDEK(encrypted, reKey);
+        byte[] reEncrypted = keyManager.reEncryptEDEK("data", encrypted, reKey);
         Key decrypted = keyManager.decryptEDEK(reEncrypted, isComplex);
         assertEquals(key, decrypted);
     }
