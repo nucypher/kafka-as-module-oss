@@ -16,6 +16,7 @@ import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ import java.util.Set;
  */
 public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
 
-    private static final String ENCRYPTED_FIELD = "encrypted";
+    private static final String EDEKS_FIELD = "edeks";
     private static final String INITIAL_SCHEMA_ID_PROPERTY = "initialSchemaId";
     private static final Schema BYTES_TYPE = SchemaBuilder.builder().bytesType();
 
@@ -43,7 +44,8 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
     private Map<SchemaCacheKey, Schema> schemasCache = new HashMap<>();
 
     private GenericRecord currentRecord;
-    private List<String> encrypted;
+    //TODO change EDEK value to bytes
+    private Map<String, String> edeks;
     private Map<String, FieldObject> fieldsCache;
     private String topic;
     private Schema initialSchema;
@@ -113,12 +115,13 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
             throw new CommonException(
                     "Property '%s' reserved for initial schema id", INITIAL_SCHEMA_ID_PROPERTY);
         }
-        encrypted = new ArrayList<>();
+        edeks = new HashMap<>();
         if (initialSchemaId != null) {
             encryptedSchema = schema;
             initialSchema = getInitialSchema((Integer) initialSchemaId);
-            for (Object field : (List<?>) currentRecord.get(ENCRYPTED_FIELD)) {
-                encrypted.add(field.toString());
+            for (Map.Entry<?, ?> entry :
+                    ((Map<String, ?>) currentRecord.get(EDEKS_FIELD)).entrySet()) {
+                edeks.put(entry.getKey().toString(), entry.getValue().toString());
             }
         } else {
             initialSchema = schema;
@@ -167,8 +170,8 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
                 }
                 if (!addBytes) {
                     Schema.Field newField = new Schema.Field(
-                            ENCRYPTED_FIELD,
-                            SchemaBuilder.unionOf().nullType().and().array().items().stringType().endUnion(),
+                            EDEKS_FIELD,
+                            SchemaBuilder.unionOf().nullType().and().map().values().stringType().endUnion(),
                             null,
                             JsonProperties.NULL_VALUE);
                     fields.add(newField);
@@ -233,9 +236,9 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
             throw new CommonException("Current record is null");
         }
         GenericRecord record;
-        if (encrypted != null && !encrypted.isEmpty()) {
+        if (edeks != null && !edeks.isEmpty()) {
             record = updateSchema(currentRecord, encryptedSchema);
-            record.put(ENCRYPTED_FIELD, encrypted);
+            record.put(EDEKS_FIELD, edeks);
         } else {
             record = updateSchema(currentRecord, initialSchema);
         }
@@ -259,16 +262,22 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
     }
 
     @Override
-    public Map<String, byte[]> getAllEncrypted() {
+    public Map<String, byte[]> getAllEDEKs() {
         Map<String, byte[]> fields = new HashMap<>();
-        if (encrypted == null || encrypted.isEmpty()) {
+        if (edeks == null || edeks.isEmpty()) {
             return fields;
         }
-        for (String field : encrypted) {
-            FieldObject object = getFieldObject(field);
-            fields.put(field, toByteArray((ByteBuffer) object.getValue()));
+        for (Map.Entry<String, String> entry : edeks.entrySet()) {
+            String field = entry.getKey();
+            fields.put(field, DatatypeConverter.parseBase64Binary(entry.getValue()));
         }
         return fields;
+    }
+
+    @Override
+    public byte[] getEncrypted(String field) {
+        FieldObject object = getFieldObject(field);
+        return toByteArray((ByteBuffer) object.getValue());
     }
 
     @Override
@@ -281,10 +290,11 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
     public void addEncrypted(String field, byte[] data) {
         FieldObject object = getFieldObject(field);
         object.setValue(ByteBuffer.wrap(data));
+    }
 
-        if (!encrypted.contains(field)) {
-            encrypted.add(field);
-        }
+    @Override
+    public void addEDEK(String field, byte[] edek) {
+        edeks.put(field, DatatypeConverter.printBase64Binary(edek));
     }
 
     @Override
@@ -293,8 +303,8 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
         Object value = AvroUtils.deserialize(object.getSchema(), data);
         object.setValue(value);
 
-        if (encrypted.contains(field)) {
-            encrypted.remove(field);
+        if (edeks.containsKey(field)) {
+            edeks.remove(field);
         }
     }
 
@@ -429,7 +439,7 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
             this.record = record;
             for (int i = 0; i < schema.getFields().size(); i++) {
                 Schema.Field field = schema.getFields().get(i);
-                if (field.name().equals(ENCRYPTED_FIELD)) {
+                if (field.name().equals(EDEKS_FIELD)) {
                     encryptedIndex = i;
                 }
             }
@@ -440,7 +450,7 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
 
         @Override
         public void put(String key, Object v) {
-            if (ENCRYPTED_FIELD.equals(key)) {
+            if (EDEKS_FIELD.equals(key)) {
                 encrypted = v;
             } else {
                 record.put(key, v);

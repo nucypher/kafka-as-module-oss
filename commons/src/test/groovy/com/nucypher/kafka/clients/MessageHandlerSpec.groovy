@@ -3,15 +3,10 @@ package com.nucypher.kafka.clients
 import com.nucypher.kafka.cipher.AbstractCipher
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager
 import com.nucypher.kafka.utils.AESKeyGenerators
-import com.nucypher.kafka.utils.ByteUtils
 import com.nucypher.kafka.utils.WrapperReEncryptionKey
 import spock.lang.Specification
 
 import java.security.Key
-
-import static com.nucypher.kafka.Constants.KEY_EDEK
-import static com.nucypher.kafka.Constants.KEY_IS_COMPLEX
-import static com.nucypher.kafka.Constants.KEY_IV
 
 /**
  * Test for {@link MessageHandler}
@@ -38,9 +33,8 @@ class MessageHandlerSpec extends Specification {
 
         then: 'should be message object'
         message.payload == data
-        message.topic == topic
-        message.getIV() != null
-        message.getEDEK() == key.getEncoded()
+        message.iv != null
+        message.EDEK.bytes == key.getEncoded()
         1 * keyManager.getDEK(topic) >> key
         1 * keyManager.encryptDEK(key, topic) >> key.getEncoded()
         1 * cipher.encrypt(data, key, _) >> data
@@ -53,9 +47,9 @@ class MessageHandlerSpec extends Specification {
         random.nextBytes(data)
         byte[] iv = new byte[data.length]
         random.nextBytes(iv)
-        String topic = "TOPIC"
         Key key = DEK
-        Message message = new Message(data, topic, key.getEncoded(), iv)
+        Message message = new Message(
+                data, iv, new EncryptedDataEncryptionKey(key.getEncoded()))
 
         DataEncryptionKeyManager keyManager = Mock()
         AbstractCipher cipher = Mock()
@@ -79,34 +73,33 @@ class MessageHandlerSpec extends Specification {
         random.nextBytes(iv)
         String topic = "TOPIC"
         Key key = DEK
-        Message message = new Message(data, topic, key.getEncoded(), iv)
+        Message message = new Message(
+                data, iv, new EncryptedDataEncryptionKey(key.getEncoded()))
 
         DataEncryptionKeyManager keyManager = Mock()
         WrapperReEncryptionKey reKey = Mock()
         MessageHandler messageHandler = new MessageHandler(keyManager)
 
         when: 'simple re-encrypt message'
-        byte[] reEncrypted = messageHandler.reEncrypt(message.serialize(), reKey)
+        byte[] reEncrypted = messageHandler.reEncrypt(topic, message.serialize(), reKey)
         message = Message.deserialize(reEncrypted)
 
         then: 'should be right message object'
         message.payload == data
-        message.topic == topic
-        message.getIV() == iv
-        message.getEDEK() == key.getEncoded()
-        !message.isComplex()
+        message.iv == iv
+        message.EDEK.bytes == key.getEncoded()
+        !message.EDEK.isComplex()
         1 * keyManager.reEncryptEDEK(topic, key.getEncoded(), reKey) >> key.getEncoded()
 
         when: 'complex re-encrypt message'
-        reEncrypted = messageHandler.reEncrypt(message.serialize(), reKey)
+        reEncrypted = messageHandler.reEncrypt(topic, message.serialize(), reKey)
         message = Message.deserialize(reEncrypted)
 
         then: 'should be right message object'
         message.payload == data
-        message.topic == topic
-        message.getIV() == iv
-        message.getEDEK() == key.getEncoded()
-        message.isComplex()
+        message.iv == iv
+        message.EDEK.bytes == key.getEncoded()
+        message.EDEK.isComplex()
         keyManager.reEncryptEDEK(topic, key.getEncoded(), reKey) >> key.getEncoded()
         reKey.isComplex() >> true
     }

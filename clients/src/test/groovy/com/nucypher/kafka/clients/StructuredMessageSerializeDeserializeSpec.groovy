@@ -84,13 +84,19 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         where:
         message << ["{\"a\":\"a\", \"b\":\"b\"}",
                     "{\"a\":\"a\", \"b\":\"b\"}\n{\"a\":\"c\", \"b\":\"d\"}"]
-        encryptedMessageAll << ["\\{\"a\":\"\\w+\", \"b\":\"\\w+\", \"encrypted\":\\[\"a\", \"b\"]}",
-                                "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", \"encrypted\":\\[\"a\", \"b\"]}\n" +
-                                        "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", \"encrypted\":\\[\"a\", \"b\"]}"
+        encryptedMessageAll << ["\\{\"a\":\"\\w+\", \"b\":\"\\w+\", " +
+                                        "\"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}",
+                                "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", " +
+                                        "\"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}\n" +
+                                        "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", " +
+                                        "\"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}"
         ]
-        encryptedMessageAField << ["\\{\"a\":\"\\w+\", \"b\":\"b\", \"encrypted\":\\[\"a\"]}",
-                                   "\\{\"a\":\"\\w+\", \"b\":\"b\", \"encrypted\":\\[\"a\"]}\n" +
-                                           "\\{\"a\":\"\\w+\", \"b\":\"d\", \"encrypted\":\\[\"a\"]}"
+        encryptedMessageAField << ["\\{\"a\":\"\\w+\", \"b\":\"b\", " +
+                                           "\"encrypted\":\\{\"a\":\"\\w+\"}}",
+                                   "\\{\"a\":\"\\w+\", \"b\":\"b\", " +
+                                           "\"encrypted\":\\{\"a\":\"\\w+\"}}\n" +
+                                           "\\{\"a\":\"\\w+\", \"b\":\"d\", " +
+                                           "\"encrypted\":\\{\"a\":\"\\w+\"}}"
         ]
     }
 
@@ -127,12 +133,14 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         byte[] bytes = serializer.serialize(topic, message)
 
         then: '"a" and "b" fields should be decrypted'
-        new String(bytes).matches("\\{\"a\":\"\\w+\", \"b\":\"\\w+\", \"encrypted\":\\[\"a\", \"b\"]}")
+        new String(bytes).matches(
+                "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", \"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}")
 
         when: 'decrypt all fields'
         String decryptedMessage = deserializer.deserialize(topic, bytes)
 
         then: 'only "a" field should be decrypted'
-        decryptedMessage.matches("\\{\"a\":\"a\", \"b\":\"\\w+\", \"encrypted\":\\[\"b\"]}")
+        decryptedMessage.matches(
+                "\\{\"a\":\"a\", \"b\":\"\\w+\", \"encrypted\":\\{\"b\":\"\\w+\"}}")
     }
 }

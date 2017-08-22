@@ -4,7 +4,6 @@ import com.nucypher.kafka.utils.StringUtils;
 import org.bouncycastle.util.encoders.Hex;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,9 +20,9 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
 
     private static class Line {
         private Map<String, String> fields;
-        private List<String> encrypted;
+        private Map<String, String> encrypted;
 
-        public Line(Map<String, String> fields, List<String> encrypted) {
+        public Line(Map<String, String> fields, Map<String, String> encrypted) {
             this.fields = fields;
             this.encrypted = encrypted;
         }
@@ -53,10 +52,12 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
                 fields.put(field[0], field[1]);
             }
         }
-        List<String> encrypted = new ArrayList<>();
+        Map<String, String> encrypted = new HashMap<>();
         if (parts.length > 1) {
-            String field = parts[1].replaceAll("[\"\\s{}\\[\\]]", "");
-            Collections.addAll(encrypted, field.split(","));
+            for (String part : parts[1].split(",")) {
+                String[] field = part.replaceAll("[\"\\s{}\\[\\]]", "").split(":");
+                encrypted.put(field[0], field[1]);
+            }
         }
         lines.add(new Line(fields, encrypted));
     }
@@ -76,7 +77,7 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
     private String serialize(int index) {
         Line line = lines.get(index);
         Map<String, String> fields = line.fields;
-        List<String> encrypted = line.encrypted;
+        Map<String, String> encrypted = line.encrypted;
         StringBuilder builder = new StringBuilder("{");
         int i = 0;
         for (Map.Entry<String, String> entry : fields.entrySet()) {
@@ -92,17 +93,19 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
             }
         }
         if (encrypted != null && !encrypted.isEmpty()) {
-            builder.append(", \"encrypted\":[");
+            builder.append(", \"encrypted\":{");
             i = 0;
-            for (String field : encrypted) {
+            for (Map.Entry<String, String> field : encrypted.entrySet()) {
                 builder.append("\"")
-                        .append(field)
+                        .append(field.getKey())
+                        .append("\":\"")
+                        .append(field.getValue())
                         .append("\"");
                 if (++i < encrypted.size()) {
                     builder.append(", ");
                 }
             }
-            builder.append("]");
+            builder.append("}");
         }
         builder.append("}");
         return builder.toString();
@@ -115,13 +118,18 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
     }
 
     @Override
-    public Map<String, byte[]> getAllEncrypted() {
-        List<String> encrypted = lines.get(index).encrypted;
+    public Map<String, byte[]> getAllEDEKs() {
+        Map<String, String> encrypted = lines.get(index).encrypted;
         Map<String, byte[]> result = new HashMap<>();
-        for (String field : encrypted) {
-            result.put(field, Hex.decode(getUnencrypted(field)));
+        for (Map.Entry<String, String> field : encrypted.entrySet()) {
+            result.put(field.getKey(), Hex.decode(field.getValue()));
         }
         return result;
+    }
+
+    @Override
+    public byte[] getEncrypted(String field) {
+        return Hex.decode(getUnencrypted(field));
     }
 
     @Override
@@ -132,20 +140,22 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
 
     @Override
     public void addEncrypted(String field, byte[] data) {
-        List<String> encrypted = lines.get(index).encrypted;
-        if (!encrypted.contains(field)) {
-            encrypted.add(field);
-        }
         Map<String, String> fields = lines.get(index).fields;
         fields.put(field, Hex.toHexString(data));
     }
 
     @Override
+    public void addEDEK(String field, byte[] edek) {
+        Map<String, String> encrypted = lines.get(index).encrypted;
+        encrypted.put(field, Hex.toHexString(edek));
+    }
+
+    @Override
     public void addUnencrypted(String field, byte[] data) {
         Map<String, String> fields = lines.get(index).fields;
-        List<String> encrypted = lines.get(index).encrypted;
+        Map<String, String> encrypted = lines.get(index).encrypted;
         fields.put(field, new String(data));
-        if (encrypted.contains(field)) {
+        if (encrypted.containsKey(field)) {
             encrypted.remove(field);
         }
     }

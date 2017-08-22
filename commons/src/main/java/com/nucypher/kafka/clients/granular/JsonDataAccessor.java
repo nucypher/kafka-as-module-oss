@@ -11,7 +11,6 @@ import com.nucypher.kafka.utils.GranularUtils;
 
 import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -23,11 +22,13 @@ import java.util.Set;
  */
 public class JsonDataAccessor extends OneMessageDataAccessor {
 
-    private static final String ENCRYPTED_FIELD = "encrypted";
+    private static final String EDEKS_FIELD = "edeks";
+    private static final String EDEK_FIELD = "edek";
+    private static final String DATA_FIELD = "data";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private JsonNode root;
-    private ArrayNode encryptedNode;
+    private ObjectNode edeksNode;
     private Map<String, FieldObject> fieldsCache;
 
     @Override
@@ -42,60 +43,68 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
         } catch (IOException e) {
             throw new CommonException(e, "Unable to parse JSON data '%s'", new String(data));
         }
-        extractEncryptedFields();
+        extractEDEKs();
         setEmpty(root.size() == 0);
         fieldsCache = new HashMap<>();
     }
 
-    private void extractEncryptedFields() {
+    private void extractEDEKs() {
         if (!root.isObject()) {
             return;
         }
-        JsonNode encrypted = root.get(ENCRYPTED_FIELD);
-        if (encrypted == null || encrypted.isNull()) {
-            encryptedNode = MAPPER.createArrayNode();
+        JsonNode edeks = root.get(EDEKS_FIELD);
+        if (edeks == null || edeks.isNull()) {
+            edeksNode = MAPPER.createObjectNode();
             ObjectNode objectRoot = (ObjectNode) root;
-            objectRoot.set(ENCRYPTED_FIELD, encryptedNode);
+            objectRoot.set(EDEKS_FIELD, edeksNode);
             return;
         }
-        if (!encrypted.isArray()) {
+        if (!edeks.isObject()) {
             throw new CommonException(
-                    "Field '%s' reserved for array of encrypted fields", ENCRYPTED_FIELD);
+                    "Field '%s' reserved for map of EDEKs", EDEKS_FIELD);
         }
-        encryptedNode = (ArrayNode) encrypted;
-        for (JsonNode encryptedField : encryptedNode) {
-            if (!encryptedField.isTextual()) {
+        edeksNode = (ObjectNode) edeks;
+        Iterator<Map.Entry<String, JsonNode>> iterator = edeksNode.fields();
+        while (iterator.hasNext()) {
+            Map.Entry<String, JsonNode> entry = iterator.next();
+            if (!entry.getValue().isTextual()) {
                 throw new CommonException(
-                        "Field '%s' reserved for array of encrypted fields", ENCRYPTED_FIELD);
+                        "Field '%s' reserved for map of EDEKs", EDEKS_FIELD);
             }
         }
     }
 
     @Override
     public byte[] serialize() {
-        if ((encryptedNode == null ||
-                encryptedNode.size() == 0) &&
+        if ((edeksNode == null ||
+                edeksNode.size() == 0) &&
                 root.isObject()) {
-            ((ObjectNode) root).remove(ENCRYPTED_FIELD);
+            ((ObjectNode) root).remove(EDEKS_FIELD);
         }
         return getBytes(root);
     }
 
     @Override
     public Set<String> getAllFields() {
-        return getAll(new HashMap<String, byte[]>(), root, "", false).keySet();
+        return getAll(new HashMap<String, String>(), root, "", false).keySet();
     }
 
-    private Map<String, byte[]> getAll(Map<String, byte[]> fields,
+    //TODO refactor
+    private Map<String, String> getAll(Map<String, String> fields,
                                        JsonNode node,
                                        String fieldName,
                                        boolean loadData) {
-        if (node.isObject()) {
+        JsonNode edek = node.get(EDEK_FIELD);
+        if (node.isObject() && edek == null) {
             Iterator<Map.Entry<String, JsonNode>> iterator = node.fields();
             while (iterator.hasNext()) {
                 Map.Entry<String, JsonNode> entry = iterator.next();
-                getAll(fields, fieldName, entry.getKey(), entry.getValue(), loadData);
+                if (!entry.getKey().equals(EDEKS_FIELD)) {
+                    getAll(fields, fieldName, entry.getKey(), entry.getValue(), loadData);
+                }
             }
+        } else if (node.isObject() && edek != null) {
+            fields.put(fieldName, loadData ? edek.asText() : null);
         } else {
             int i = 0;
             for (JsonNode child : node) {
@@ -107,7 +116,7 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
         return fields;
     }
 
-    private void getAll(Map<String, byte[]> fields,
+    private void getAll(Map<String, String> fields,
                         String parentFieldName,
                         String childName,
                         JsonNode node,
@@ -116,35 +125,47 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
         if (node.isObject() || node.isArray()) {
             getAll(fields, node, fieldName, loadData);
         } else if (loadData) {
-            fields.put(fieldName, getBytes(node));
+            fields.put(fieldName, node.asText());
         } else {
             fields.put(fieldName, null);
         }
     }
 
     @Override
-    public Map<String, byte[]> getAllEncrypted() {
+    public Map<String, byte[]> getAllEDEKs() {
         Map<String, byte[]> fields = new HashMap<>();
         if (root.isObject()) {
-            for (JsonNode node : encryptedNode) {
-                String field = node.asText();
-                fields.put(field, getBytesWithoutQuotes(getUnencrypted(field)));
+            Iterator<Map.Entry<String, JsonNode>> iterator = edeksNode.fields();
+            while (iterator.hasNext()) {
+                Map.Entry<String, JsonNode> entry = iterator.next();
+                fields.put(entry.getKey(), getBytes(entry.getValue().asText()));
             }
         } else {
-            Map<String, byte[]> fieldsData =
-                    getAll(new HashMap<String, byte[]>(), root, "", true);
-            for (Map.Entry<String, byte[]> entry : fieldsData.entrySet()) {
-                fields.put(entry.getKey(), getBytesWithoutQuotes(entry.getValue()));
+            Map<String, String> fieldsData =
+                    getAll(new HashMap<String, String>(), root, "", true);
+            for (Map.Entry<String, String> entry : fieldsData.entrySet()) {
+                fields.put(entry.getKey(), getBytes(entry.getValue()));
             }
         }
         return fields;
     }
 
     private byte[] getBytesWithoutQuotes(byte[] input) {
-        byte[] bytes = Arrays.copyOfRange(input, 1, input.length - 1);
-        return DatatypeConverter.parseBase64Binary(new String(bytes));
+        return getBytes(new String(input, 1, input.length - 1));
     }
 
+    private byte[] getBytes(String input) {
+        return DatatypeConverter.parseBase64Binary(input);
+    }
+
+    @Override
+    public byte[] getEncrypted(String field) {
+        if (root.isObject()) {
+            return getBytesWithoutQuotes(getUnencrypted(field));
+        } else {
+            return getBytesWithoutQuotes(getUnencrypted(field + "." + DATA_FIELD));
+        }
+    }
 
     @Override
     public byte[] getUnencrypted(String field) {
@@ -200,17 +221,38 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
     @Override
     public void addEncrypted(String field, byte[] data) {
         JsonNode dataNode = TextNode.valueOf(DatatypeConverter.printBase64Binary(data));
-        getFieldObject(field).setValue(dataNode);
-
-        boolean contains = false;
-        for (JsonNode node : encryptedNode) {
-            if (node.asText().equals(field)) {
-                contains = true;
-                break;
+        FieldObject fieldObject = getFieldObject(field);
+        if (root.isObject()) {
+            fieldObject.setValue(dataNode);
+        } else {
+            ObjectNode objectNode;
+            if (!fieldObject.getValue().isObject() || !fieldObject.getValue().has(EDEK_FIELD)) {
+                objectNode = MAPPER.createObjectNode();
+                objectNode.set(EDEK_FIELD, null);
+                fieldObject.setValue(objectNode);
+            } else {
+                objectNode = (ObjectNode) fieldObject.getValue();
             }
+            objectNode.set(DATA_FIELD, dataNode);
         }
-        if (!contains) {
-            encryptedNode.add(field);
+    }
+
+    @Override
+    public void addEDEK(String field, byte[] data) {
+        JsonNode dataNode = TextNode.valueOf(DatatypeConverter.printBase64Binary(data));
+        if (root.isObject()) {
+            edeksNode.set(field, dataNode);
+        } else {
+            FieldObject fieldObject = getFieldObject(field);
+            ObjectNode objectNode;
+            if (!fieldObject.getValue().isObject() || !fieldObject.getValue().has(EDEK_FIELD)) {
+                objectNode = MAPPER.createObjectNode();
+                objectNode.set(DATA_FIELD, fieldObject.getValue());
+                fieldObject.setValue(objectNode);
+            } else {
+                objectNode = (ObjectNode) fieldObject.getValue();
+            }
+            objectNode.set(EDEK_FIELD, dataNode);
         }
     }
 
@@ -224,14 +266,7 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
         }
         getFieldObject(field).setValue(dataNode);
 
-        int i = 0;
-        for (JsonNode node : encryptedNode) {
-            if (node.asText().equals(field)) {
-                break;
-            }
-            i++;
-        }
-        encryptedNode.remove(i);
+        edeksNode.remove(field);
     }
 
     private static class FieldObject {
@@ -262,6 +297,7 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
                 arrayNode.remove(index);
                 arrayNode.insert(index, dataNode);
             }
+            childNode = dataNode;
         }
     }
 }

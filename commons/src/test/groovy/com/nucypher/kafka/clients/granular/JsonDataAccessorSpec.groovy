@@ -26,7 +26,7 @@ class JsonDataAccessorSpec extends Specification {
             "\"e\":{\"e\":{\"e\":[{\"e\":\"e\"}]}}," +
             "\"z\":\"z\"," +
             "\"1\":\"1\"," +
-            "\"encrypted\":[\"c\"]}"
+            "\"edeks\":{\"c\":\"${Base64.toBase64String("edek-c".getBytes())}\"}}"
 
     private static String encryptedComplexObjectJson = "{" +
             "\"a\":[\"${Base64.toBase64String("false".getBytes())}\",true]," +
@@ -36,13 +36,21 @@ class JsonDataAccessorSpec extends Specification {
             "\"e\":{\"e\":{\"e\":[\"${Base64.toBase64String("{\"e\":\"e\"}".getBytes())}\"]}}," +
             "\"z\":\"z\"," +
             "\"1\":\"${Base64.toBase64String("\"1\"".getBytes())}\"," +
-            "\"encrypted\":[\"c\",\"a.1\",\"b.b\",\"d\",\"e.e.e.1\",\"1\"]}"
+            "\"edeks\":{" +
+            "\"c\":\"${Base64.toBase64String("edek-c".getBytes())}\"," +
+            "\"a.1\":\"${Base64.toBase64String("edek-a.1".getBytes())}\"," +
+            "\"b.b\":\"${Base64.toBase64String("edek-b.b".getBytes())}\"," +
+            "\"d\":\"${Base64.toBase64String("edek-d".getBytes())}\"," +
+            "\"e.e.e.1\":\"${Base64.toBase64String("edek-e.e.e.1".getBytes())}\"," +
+            "\"1\":\"${Base64.toBase64String("edek-1".getBytes())}\"}}"
 
     private static String arrayJson = "[{\"a\":1},2]"
 
     private static String encryptedArrayJson =
-            "[{\"a\":\"${Base64.toBase64String("1".getBytes())}\"}," +
-                    "\"${Base64.toBase64String("2".getBytes())}\"]"
+            "[{\"a\":{\"edek\":\"${Base64.toBase64String("edek-1.a".getBytes())}\"," +
+                    "\"data\":\"${Base64.toBase64String("1".getBytes())}\"}}," +
+                    "{\"edek\":\"${Base64.toBase64String("edek-2".getBytes())}\"," +
+                    "\"data\":\"${Base64.toBase64String("2".getBytes())}\"}]"
 
     def 'serialization and deserialization'() {
         setup: 'initialization'
@@ -122,33 +130,76 @@ class JsonDataAccessorSpec extends Specification {
         new String(a) == "1"
     }
 
-    def 'getting all encrypted values'() {
+    def 'getting encrypted values'() {
         setup: 'initialization'
         JsonDataAccessor dataAccessor = new JsonDataAccessor()
         dataAccessor.deserialize(null, encryptedComplexObjectJson.getBytes())
 
         when: 'get all encrypted values from complex json'
-        Map<String, byte[]> values = dataAccessor.getAllEncrypted()
+        byte[] c = dataAccessor.getEncrypted("c")
+        byte[] bb = dataAccessor.getEncrypted("b.b")
+        byte[] a1 = dataAccessor.getEncrypted("a.1")
+        byte[] d = dataAccessor.getEncrypted("d")
+        byte[] eee1 = dataAccessor.getEncrypted("e.e.e.1")
+        byte[] f1 = dataAccessor.getEncrypted("1")
 
         then: 'should be right values'
-        values == ["1":"\"1\"".getBytes(),
-                   "a.1":"false".getBytes(),
-                   "b.b":"10".getBytes(),
-                   "c":"\"c\"".getBytes(),
-                   "d":"null".getBytes(),
-                   "e.e.e.1":"{\"e\":\"e\"}".getBytes()]
+        new String(c) == "\"c\""
+        new String(bb) == "10"
+        new String(a1) == "false"
+        new String(d) == "null"
+        new String(eee1) == "{\"e\":\"e\"}"
+        new String(f1) == "\"1\""
+
+        when: 'get value of nonexistent field'
+        dataAccessor.getEncrypted("a.3")
+
+        then: 'thrown not-found exception'
+        thrown(CommonException)
+
+        when: 'get value of nonexistent field'
+        dataAccessor.getEncrypted("z.z")
+
+        then: 'thrown not-found exception'
+        thrown(CommonException)
 
         when: 'get all encrypted values from array json'
         dataAccessor.deserialize(null, encryptedArrayJson.getBytes())
-        values = dataAccessor.getAllEncrypted()
+        byte[] second = dataAccessor.getEncrypted("2")
+        byte[] a = dataAccessor.getEncrypted("1.a")
 
         then: 'should be right values'
-        values == ["1.a":"1".getBytes(),
-                   "2":"2".getBytes()]
+        new String(a) == "1"
+        new String(second) == "2"
+    }
+
+    def 'getting all EDEKs'() {
+        setup: 'initialization'
+        JsonDataAccessor dataAccessor = new JsonDataAccessor()
+        dataAccessor.deserialize(null, encryptedComplexObjectJson.getBytes())
+
+        when: 'get all encrypted values from complex json'
+        Map<String, byte[]> values = dataAccessor.getAllEDEKs()
+
+        then: 'should be right values'
+        values == ["1"      : "edek-1".getBytes(),
+                   "a.1"    : "edek-a.1".getBytes(),
+                   "b.b"    : "edek-b.b".getBytes(),
+                   "c"      : "edek-c".getBytes(),
+                   "d"      : "edek-d".getBytes(),
+                   "e.e.e.1": "edek-e.e.e.1".getBytes()]
+
+        when: 'get all encrypted values from array json'
+        dataAccessor.deserialize(null, encryptedArrayJson.getBytes())
+        values = dataAccessor.getAllEDEKs()
+
+        then: 'should be right values'
+        values == ["1.a": "edek-1.a".getBytes(),
+                   "2"  : "edek-2".getBytes()]
 
         when: 'get all encrypted values from unencrypted complex json'
         dataAccessor.deserialize(null, complexObjectJson.getBytes())
-        values = dataAccessor.getAllEncrypted()
+        values = dataAccessor.getAllEDEKs()
 
         then: 'should be 0 values'
         values.size() == 0
@@ -194,6 +245,7 @@ class JsonDataAccessorSpec extends Specification {
 
         when: 'add some encrypted values to complex json'
         dataAccessor.addEncrypted("c", "\"c\"".getBytes())
+        dataAccessor.addEDEK("c", "edek-c".getBytes())
         byte[] bytes = dataAccessor.serialize()
 
         then: 'should be right json'
@@ -205,6 +257,11 @@ class JsonDataAccessorSpec extends Specification {
         dataAccessor.addEncrypted("d", "null".getBytes())
         dataAccessor.addEncrypted("e.e.e.1", "{\"e\":\"e\"}".getBytes())
         dataAccessor.addEncrypted("1", "\"1\"".getBytes())
+        dataAccessor.addEDEK("a.1", "edek-a.1".getBytes())
+        dataAccessor.addEDEK("b.b", "edek-b.b".getBytes())
+        dataAccessor.addEDEK("d", "edek-d".getBytes())
+        dataAccessor.addEDEK("e.e.e.1", "edek-e.e.e.1".getBytes())
+        dataAccessor.addEDEK("1", "edek-1".getBytes())
         bytes = dataAccessor.serialize()
 
         then: 'should be encrypted json'
@@ -214,6 +271,8 @@ class JsonDataAccessorSpec extends Specification {
         dataAccessor.deserialize(null, arrayJson.getBytes())
         dataAccessor.addEncrypted("1.a", "1".getBytes())
         dataAccessor.addEncrypted("2", "2".getBytes())
+        dataAccessor.addEDEK("1.a", "edek-1.a".getBytes())
+        dataAccessor.addEDEK("2", "edek-2".getBytes())
         bytes = dataAccessor.serialize()
 
         then: 'should be encrypted json'

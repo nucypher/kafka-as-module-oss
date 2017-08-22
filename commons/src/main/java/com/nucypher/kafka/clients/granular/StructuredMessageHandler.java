@@ -1,5 +1,7 @@
 package com.nucypher.kafka.clients.granular;
 
+import com.nucypher.kafka.clients.EncryptedDataEncryptionKey;
+import com.nucypher.kafka.clients.Message;
 import com.nucypher.kafka.clients.MessageHandler;
 import com.nucypher.kafka.utils.GranularUtils;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
@@ -23,7 +25,7 @@ public class StructuredMessageHandler implements Serializable {
 
     private MessageHandler messageHandler;
     //TODO store EDEKs once before message
-    private Map<String, byte[]> encryptedFields;
+    private Map<String, byte[]> edeks;
     private StructuredDataAccessor dataAccessor;
 
     /**
@@ -53,9 +55,12 @@ public class StructuredMessageHandler implements Serializable {
             dataAccessor.seekToNext();
             for (String field : fields) {
                 byte[] fieldData = dataAccessor.getUnencrypted(field);
-                fieldData = messageHandler.encrypt(
+                Message message = messageHandler.encryptMessage(
                         GranularUtils.getChannelFieldName(topic, field), fieldData);
-                dataAccessor.addEncrypted(field, fieldData);
+                EncryptedDataEncryptionKey edek = message.getEDEK();
+                message.setEDEK(null);
+                dataAccessor.addEDEK(field, edek.serialize());
+                dataAccessor.addEncrypted(field, message.serialize());
             }
         }
         return dataAccessor.serialize();
@@ -75,11 +80,15 @@ public class StructuredMessageHandler implements Serializable {
         dataAccessor.deserialize(topic, payload);
         while (dataAccessor.hasNext()) {
             dataAccessor.seekToNext();
-            for (Map.Entry<String, byte[]> entry : dataAccessor.getAllEncrypted().entrySet()) {
+            for (Map.Entry<String, byte[]> entry : dataAccessor.getAllEDEKs().entrySet()) {
                 String field = entry.getKey();
-                byte[] fieldData = entry.getValue();
+                EncryptedDataEncryptionKey edek = EncryptedDataEncryptionKey.deserialize(
+                        entry.getValue());
+                byte[] fieldData = dataAccessor.getEncrypted(field);
+                Message message = Message.deserialize(fieldData);
+                message.setEDEK(edek);
                 try {
-                    fieldData = messageHandler.decrypt(fieldData);
+                    fieldData = messageHandler.decryptMessage(message);
                     dataAccessor.addUnencrypted(field, fieldData);
                 } catch (Exception e) {
                     LOGGER.warn("Field '{}' is not available to decrypt: {}", field, e.getMessage());
@@ -103,45 +112,47 @@ public class StructuredMessageHandler implements Serializable {
         this.dataAccessor = dataAccessor;
         dataAccessor.deserialize(topic, payload);
         if (!dataAccessor.hasNext()) {
-            encryptedFields = new HashMap<>();
+            edeks = new HashMap<>();
             return Collections.emptySet();
         }
         dataAccessor.seekToNext();
-        encryptedFields = dataAccessor.getAllEncrypted();
-//        Set<String> fields = dataAccessor.getAllEncrypted().keySet();
-//        dataAccessor.reset();
-        return encryptedFields.keySet();
+        edeks = dataAccessor.getAllEDEKs();
+        return edeks.keySet();
     }
 
     /**
      * Re-encrypt EDEKs and serialize into byte array
      *
+     * @param topic        topic
      * @param reKeys fields and re-encryption keys
      * @return byte array
      */
     //TODO refactor
-    public byte[] reEncrypt(Map<String, WrapperReEncryptionKey> reKeys) {
-//        dataAccessor.deserialize(topic, payload);
+    public byte[] reEncrypt(String topic,
+                            Map<String, WrapperReEncryptionKey> reKeys) {
         //first message is always deserialized
-        Map<String, byte[]> fields = encryptedFields;
-        reEncrypt(reKeys, fields);
+        Map<String, byte[]> edeks = this.edeks;
+        reEncrypt(topic, reKeys, edeks);
 
         while (dataAccessor.hasNext()) {
             dataAccessor.seekToNext();
-            fields = dataAccessor.getAllEncrypted();
-            reEncrypt(reKeys, fields);
+            edeks = dataAccessor.getAllEDEKs();
+            reEncrypt(topic, reKeys, edeks);
         }
         return dataAccessor.serialize();
     }
 
-    private void reEncrypt(Map<String, WrapperReEncryptionKey> reKeys,
-                           Map<String, byte[]> fields) {
+    private void reEncrypt(String topic,
+                           Map<String, WrapperReEncryptionKey> reKeys,
+                           Map<String, byte[]> edeks) {
         for (Map.Entry<String, WrapperReEncryptionKey> entry : reKeys.entrySet()) {
             String field = entry.getKey();
             WrapperReEncryptionKey reKey = entry.getValue();
-            byte[] fieldData = fields.get(field);
-            fieldData = messageHandler.reEncrypt(fieldData, reKey);
-            dataAccessor.addEncrypted(field, fieldData);
+            byte[] bytes = edeks.get(field);
+            EncryptedDataEncryptionKey edek = EncryptedDataEncryptionKey.deserialize(bytes);
+            edek = messageHandler.reEncryptEDEK(
+                    GranularUtils.getChannelFieldName(topic, field), edek, reKey);
+            dataAccessor.addEDEK(field, edek.serialize());
         }
     }
 }

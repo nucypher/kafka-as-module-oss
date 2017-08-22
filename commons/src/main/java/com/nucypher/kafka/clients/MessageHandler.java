@@ -66,6 +66,17 @@ public class MessageHandler {
      * @return encrypted data
      */
     public byte[] encrypt(String topic, byte[] data) {
+        return encryptMessage(topic, data).serialize();
+    }
+
+    /**
+     * Encrypt byte array
+     *
+     * @param topic topic
+     * @param data  data
+     * @return encrypted {@link Message}
+     */
+    public Message encryptMessage(String topic, byte[] data) {
         Key dek = keyManager.getDEK(topic);
         byte[] edek = keyManager.encryptDEK(dek, topic);
 
@@ -73,8 +84,8 @@ public class MessageHandler {
         secureRandom.nextBytes(iv);
 
         byte[] encryptedData = cipher.encrypt(data, dek, iv);
-        Message message = new Message(encryptedData, topic, edek, iv);
-        return message.serialize();
+        return new Message(
+                encryptedData, iv, new EncryptedDataEncryptionKey(edek));
     }
 
     /**
@@ -85,11 +96,20 @@ public class MessageHandler {
      */
     public byte[] decrypt(byte[] payload) {
         Message message = Message.deserialize(payload);
+        return decryptMessage(message);
+    }
 
+    /**
+     * Decrypt message
+     *
+     * @param message {@link Message}
+     * @return decrypted data
+     */
+    public byte[] decryptMessage(Message message) {
         byte[] data = message.getPayload();
-        byte[] edek = message.getEDEK();
+        byte[] edek = message.getEDEK().getBytes();
         byte[] iv = message.getIV();
-        boolean isComplex = message.isComplex();
+        boolean isComplex = message.getEDEK().isComplex();
 
         Key dek = keyManager.decryptEDEK(edek, isComplex);
         return cipher.decrypt(data, dek, iv);
@@ -98,19 +118,31 @@ public class MessageHandler {
     /**
      * Re-encrypt EDEK
      *
+     * @param topic   topic
      * @param payload data
      * @param reKey   re-encryption key
      * @return re-encrypted data
      */
-    public byte[] reEncrypt(byte[] payload, WrapperReEncryptionKey reKey) {
+    public byte[] reEncrypt(String topic, byte[] payload, WrapperReEncryptionKey reKey) {
         Message message = Message.deserialize(payload);
-
-        byte[] edek = message.getEDEK();
-        String topic = message.getTopic();
-        edek = keyManager.reEncryptEDEK(topic, edek, reKey);
-        message.setEDEK(edek);
-        message.setComplex(reKey.isComplex());
+        message.setEDEK(reEncryptEDEK(topic, message.getEDEK(), reKey));
         return message.serialize();
+    }
+
+    /**
+     * Re-encrypt EDEK
+     *
+     * @param topic topic
+     * @param edek  EDEK
+     * @param reKey re-encryption key
+     * @return re-encrypted EDEK
+     */
+    public EncryptedDataEncryptionKey reEncryptEDEK(String topic,
+                                                    EncryptedDataEncryptionKey edek,
+                                                    WrapperReEncryptionKey reKey) {
+        byte[] bytes = edek.getBytes();
+        bytes = keyManager.reEncryptEDEK(topic, bytes, reKey);
+        return new EncryptedDataEncryptionKey(bytes, reKey.isComplex());
     }
 
 }

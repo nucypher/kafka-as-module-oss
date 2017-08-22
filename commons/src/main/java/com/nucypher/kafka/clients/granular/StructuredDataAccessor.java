@@ -9,7 +9,6 @@ import java.util.Set;
  */
 public interface StructuredDataAccessor {
 
-
     /**
      * Configure this class.
      *
@@ -39,9 +38,17 @@ public interface StructuredDataAccessor {
     public Set<String> getAllFields();
 
     /**
-     * @return all encrypted fields and their data
+     * @return all encrypted fields and their EDEK
      */
-    public Map<String, byte[]> getAllEncrypted();
+    public Map<String, byte[]> getAllEDEKs();
+
+    /**
+     * Get encrypted fields data
+     *
+     * @param field input field
+     * @return field data
+     */
+    public byte[] getEncrypted(String field);
 
     /**
      * Get unencrypted fields data
@@ -58,6 +65,14 @@ public interface StructuredDataAccessor {
      * @param data  encrypted data
      */
     public void addEncrypted(String field, byte[] data);
+
+    /**
+     * Add EDEK
+     *
+     * @param field field name
+     * @param edek  EDEK
+     */
+    public void addEDEK(String field, byte[] edek);
 
     /**
      * Add unencrypted field

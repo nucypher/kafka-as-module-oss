@@ -1,45 +1,55 @@
 package com.nucypher.kafka.clients;
 
-import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
+
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Message
  */
 public class Message {
 
-    private static final byte IS_COMPLEX_TRUE = 1;
-    private static final byte IS_COMPLEX_FALSE = 0;
-
     private byte[] payload;
-    private String topic;
-    private byte[] edek;
     private byte[] iv;
-    private boolean isComplex;
+    private EncryptedDataEncryptionKey edek;
 
     /**
-     * @param payload   data
-     * @param topic     topic
-     * @param edek      EDEK bytes
-     * @param iv        IV bytes
-     * @param isComplex is EDEK complex
+     * @param payload data
+     * @param iv      IV bytes
+     * @param edek    EDEK
      */
-    public Message(byte[] payload, String topic, byte[] edek, byte[] iv, boolean isComplex) {
+    public Message(byte[] payload, byte[] iv, EncryptedDataEncryptionKey edek) {
         this.payload = payload;
-        this.topic = topic;
         this.edek = edek;
         this.iv = iv;
-        this.isComplex = isComplex;
     }
 
     /**
      * @param payload data
-     * @param topic   topic
+     * @param iv      IV bytes
      * @param edek    EDEK bytes
+     */
+    public Message(byte[] payload, byte[] iv, byte[] edek) {
+        this(payload, iv, new EncryptedDataEncryptionKey(edek));
+    }
+
+    /**
+     * @param payload   data
+     * @param iv        IV bytes
+     * @param edek      EDEK bytes
+     * @param isComplex is EDEK complex
+     */
+    public Message(byte[] payload, byte[] iv, byte[] edek, boolean isComplex) {
+        this(payload, iv, new EncryptedDataEncryptionKey(edek, isComplex));
+    }
+
+    /**
+     * @param payload data
      * @param iv      IV bytes
      */
-    public Message(byte[] payload, String topic, byte[] edek, byte[] iv) {
-        this(payload, topic, edek, iv, false);
+    public Message(byte[] payload, byte[] iv) {
+        this(payload, iv, (EncryptedDataEncryptionKey) null);
     }
 
     /**
@@ -50,23 +60,16 @@ public class Message {
     }
 
     /**
-     * @return topic
-     */
-    public String getTopic() {
-        return topic;
-    }
-
-    /**
      * @return EDEK
      */
-    public byte[] getEDEK() {
+    public EncryptedDataEncryptionKey getEDEK() {
         return edek;
     }
 
     /**
      * @param edek EDEK
      */
-    public void setEDEK(byte[] edek) {
+    public void setEDEK(EncryptedDataEncryptionKey edek) {
         this.edek = edek;
     }
 
@@ -78,42 +81,24 @@ public class Message {
     }
 
     /**
-     * @return is EDEK complex
-     */
-    public boolean isComplex() {
-        return isComplex;
-    }
-
-    /**
-     * @param isComplex is EDEK complex
-     */
-    public void setComplex(boolean isComplex) {
-        this.isComplex = isComplex;
-    }
-
-    /**
      * Serialize {@link Message}
      *
      * @return serialized data
      */
     public byte[] serialize() {
-        byte[] topicBytes = topic.getBytes();
-        byte[] isComplexBytes = !isComplex ?
-                new byte[]{IS_COMPLEX_FALSE} : new byte[]{IS_COMPLEX_TRUE};
-
+        int length = 8 + payload.length + iv.length + (edek != null ? edek.size() : 0);
+        byte[] data = new byte[length];
         byte[] payloadLengthBytes = Ints.toByteArray(payload.length);
-        byte[] topicLengthBytes = Ints.toByteArray(topicBytes.length);
-        byte[] edekLengthBytes = Ints.toByteArray(edek.length);
         byte[] ivLengthBytes = Ints.toByteArray(iv.length);
-        return Bytes.concat(payloadLengthBytes,
-                topicLengthBytes,
-                edekLengthBytes,
-                ivLengthBytes,
-                payload,
-                topicBytes,
-                edek,
-                iv,
-                isComplexBytes);
+        System.arraycopy(payloadLengthBytes, 0, data, 0, payloadLengthBytes.length);
+        System.arraycopy(payload, 0, data, 4, payload.length);
+        System.arraycopy(
+                ivLengthBytes, 0, data, 4 + payload.length, ivLengthBytes.length);
+        System.arraycopy(iv, 0, data, 8 + payload.length, iv.length);
+        if (edek != null) {
+            data = edek.serialize(data, 8 + payload.length + iv.length);
+        }
+        return data;
     }
 
     /**
@@ -125,24 +110,32 @@ public class Message {
     public static Message deserialize(byte[] bytes) {
         byte[] payload = new byte[
                 Ints.fromBytes(bytes[0], bytes[1], bytes[2], bytes[3])];
-        byte[] topicBytes = new byte[
-                Ints.fromBytes(bytes[4], bytes[5], bytes[6], bytes[7])];
-        byte[] edek = new byte[
-                Ints.fromBytes(bytes[8], bytes[9], bytes[10], bytes[11])];
+        System.arraycopy(bytes, 4, payload, 0, payload.length);
+        int i = 4 + payload.length;
         byte[] iv = new byte[
-                Ints.fromBytes(bytes[12], bytes[13], bytes[14], bytes[15])];
-        System.arraycopy(bytes, 16, payload, 0, payload.length);
-        System.arraycopy(bytes, 16 + payload.length,
-                topicBytes, 0, topicBytes.length);
-        System.arraycopy(bytes, 16 + payload.length + topicBytes.length,
-                edek, 0, edek.length);
-        System.arraycopy(bytes, 16 + payload.length + topicBytes.length + edek.length,
-                iv, 0, iv.length);
-        byte isComplexByte = bytes[
-                16 + payload.length + topicBytes.length + edek.length + iv.length];
+                Ints.fromBytes(bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3])];
+        System.arraycopy(bytes, i + 4, iv, 0, iv.length);
+        EncryptedDataEncryptionKey edek = null;
+        if (8 + payload.length + iv.length < bytes.length) {
+            edek = EncryptedDataEncryptionKey.deserialize(
+                    bytes, 8 + payload.length + iv.length);
+        }
 
-        return new Message(payload, new String(topicBytes), edek, iv,
-                isComplexByte == IS_COMPLEX_TRUE);
+        return new Message(payload, iv, edek);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Message message = (Message) o;
+        return Arrays.equals(payload, message.payload) &&
+                Arrays.equals(iv, message.iv) &&
+                Objects.equals(edek, message.edek);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(payload, iv, edek);
+    }
 }

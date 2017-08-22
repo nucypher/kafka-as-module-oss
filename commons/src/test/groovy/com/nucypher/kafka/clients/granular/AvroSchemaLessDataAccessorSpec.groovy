@@ -9,6 +9,7 @@ import org.apache.avro.SchemaBuilder
 import org.apache.avro.generic.GenericData
 import org.apache.avro.generic.GenericRecord
 import org.apache.avro.util.Utf8
+import org.bouncycastle.util.encoders.Base64
 import spock.lang.Shared
 import spock.lang.Specification
 
@@ -94,14 +95,33 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
                 .and().bytesType().endUnion().noDefault()
                 .name("complex").type(SchemaBuilder.unionOf().type(encryptedComplexInnerRecordSchema)
                 .and().bytesType().endUnion()).noDefault()
-                .name("encrypted").type().optional().array().items().stringType()
+                .name("edeks").type().optional().map().values().stringType()
                 .endRecord()
         encryptedSchema.addProp("initialSchemaId", schemaId)
-        List<String> encrypted = ["boolean", "map.key1", "array.1", "int", "bytes",
-                                  "double", "float", "long", "string", "null", "null2",
-                                  "enum", "fixed", "union", "union2", "record.int",
-                                  "map.key2", "array.2", "complex.record"]
-        List<String> partiallyEncrypted = ["boolean", "map.key1", "array.1"]
+        Map<Utf8, Utf8> edeks = [
+                (new Utf8("string"))        : new Utf8(Base64.toBase64String("edek-string".getBytes())),
+                (new Utf8("array.2"))       : new Utf8(Base64.toBase64String("edek-array.2".getBytes())),
+                (new Utf8("array.1"))       : new Utf8(Base64.toBase64String("edek-array.1".getBytes())),
+                (new Utf8("union2"))        : new Utf8(Base64.toBase64String("edek-union2".getBytes())),
+                (new Utf8("double"))        : new Utf8(Base64.toBase64String("edek-double".getBytes())),
+                (new Utf8("union"))         : new Utf8(Base64.toBase64String("edek-union".getBytes())),
+                (new Utf8("float"))         : new Utf8(Base64.toBase64String("edek-float".getBytes())),
+                (new Utf8("int"))           : new Utf8(Base64.toBase64String("edek-int".getBytes())),
+                (new Utf8("long"))          : new Utf8(Base64.toBase64String("edek-long".getBytes())),
+                (new Utf8("enum"))          : new Utf8(Base64.toBase64String("edek-enum".getBytes())),
+                (new Utf8("record.int"))    : new Utf8(Base64.toBase64String("edek-record.int".getBytes())),
+                (new Utf8("null2"))         : new Utf8(Base64.toBase64String("edek-null2".getBytes())),
+                (new Utf8("map.key2"))      : new Utf8(Base64.toBase64String("edek-map.key2".getBytes())),
+                (new Utf8("map.key1"))      : new Utf8(Base64.toBase64String("edek-map.key1".getBytes())),
+                (new Utf8("boolean"))       : new Utf8(Base64.toBase64String("edek-boolean".getBytes())),
+                (new Utf8("null"))          : new Utf8(Base64.toBase64String("edek-null".getBytes())),
+                (new Utf8("bytes"))         : new Utf8(Base64.toBase64String("edek-bytes".getBytes())),
+                (new Utf8("fixed"))         : new Utf8(Base64.toBase64String("edek-fixed".getBytes())),
+                (new Utf8("complex.record")): new Utf8(Base64.toBase64String("edek-complex.record".getBytes()))]
+        Map<Utf8, Utf8> partiallyEDEKs = [
+                (new Utf8("map.key1")): new Utf8(Base64.toBase64String("edek-map.key1".getBytes())),
+                (new Utf8("array.1")) : new Utf8(Base64.toBase64String("edek-array.1".getBytes())),
+                (new Utf8("boolean")) : new Utf8(Base64.toBase64String("edek-boolean".getBytes()))]
 
         Map<Utf8, Integer> map = firstRecord.get("map") as Map<Utf8, Integer>
         List<ByteBuffer> list = firstRecord.get("array") as List<ByteBuffer>
@@ -125,7 +145,7 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         GenericRecord encryptedComplexInnerRecord = new GenericData.Record(encryptedComplexInnerRecordSchema)
         AvroTestUtils.encryptFields(complexInnerRecord, encryptedComplexInnerRecord, "record")
         encryptedFirstRecord.put("complex", encryptedComplexInnerRecord)
-        encryptedFirstRecord.put("encrypted", encrypted)
+        encryptedFirstRecord.put("edeks", edeks)
 
         partiallyEncryptedFirstRecord = new GenericData.Record(encryptedSchema)
         AvroTestUtils.copyAllFields(firstRecord, partiallyEncryptedFirstRecord)
@@ -136,7 +156,7 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         encryptedList = new ArrayList<>(list)
         AvroTestUtils.encryptList(encryptedList, 0)
         partiallyEncryptedFirstRecord.put("array", encryptedList)
-        partiallyEncryptedFirstRecord.put("encrypted", partiallyEncrypted)
+        partiallyEncryptedFirstRecord.put("edeks", partiallyEDEKs)
 
         map = secondRecord.get("map") as Map<Utf8, Integer>
         list = secondRecord.get("array") as List<ByteBuffer>
@@ -160,7 +180,7 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         encryptedComplexInnerRecord = new GenericData.Record(encryptedComplexInnerRecordSchema)
         AvroTestUtils.encryptFields(complexInnerRecord, encryptedComplexInnerRecord, "record")
         encryptedSecondRecord.put("complex", encryptedComplexInnerRecord)
-        encryptedSecondRecord.put("encrypted", encrypted)
+        encryptedSecondRecord.put("edeks", edeks)
 
         partiallyEncryptedSecondRecord = new GenericData.Record(encryptedSchema)
         AvroTestUtils.copyAllFields(secondRecord, partiallyEncryptedSecondRecord)
@@ -171,7 +191,7 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         encryptedList = new ArrayList<>(list)
         AvroTestUtils.encryptList(encryptedList, 0)
         partiallyEncryptedSecondRecord.put("array", encryptedList)
-        partiallyEncryptedSecondRecord.put("encrypted", partiallyEncrypted)
+        partiallyEncryptedSecondRecord.put("edeks", partiallyEDEKs)
     }
 
     def setup() {
@@ -337,7 +357,7 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         fieldName << ["test", "record.int2", "array.3", "map.key3", "union3.record"]
     }
 
-    def 'getting all encrypted values with simple types'() {
+    def 'getting encrypted values with simple types'() {
         setup: 'initialization'
         List<String> fieldNames = ["int", "boolean", "bytes", "double", "float",
                                    "long", "string", "null", "null2", "enum", "fixed",
@@ -348,54 +368,56 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
                 encryptedSchema, encryptedSchemaId, record)
         dataAccessor.deserialize(topic, data)
         dataAccessor.seekToNext()
-        Map<String, byte[]> values = dataAccessor.getAllEncrypted()
 
         then: 'should be right values'
-        values.size() == 19
         fieldNames.every {
-            values.get(it) == ((ByteBuffer) record.get(it)).array()
+            byte[] encryptedField = dataAccessor.getEncrypted(it)
+            encryptedField == ((ByteBuffer) record.get(it)).array()
         }
 
         where:
         record << [encryptedFirstRecord, encryptedSecondRecord]
     }
 
-    def 'getting all encrypted values with complex types'() {
+    def 'getting encrypted values with complex types'() {
         when: 'get all encrypted values from data'
         byte[] data = AvroTestUtils.serializeWithoutSchema(
                 encryptedSchema, encryptedSchemaId, record)
         dataAccessor.deserialize(topic, data)
         dataAccessor.seekToNext()
-        Map<String, byte[]> values = dataAccessor.getAllEncrypted()
 
         then: 'should be right values'
-        values.get("record.int") == ((ByteBuffer)
+        dataAccessor.getEncrypted("record.int") == ((ByteBuffer)
                 ((GenericRecord) record.get("record")).get("int")).array()
-        values.get("map.key1") == ((ByteBuffer)
+        dataAccessor.getEncrypted("map.key1") == ((ByteBuffer)
                 ((Map<Utf8, Object>) record.get("map")).get(new Utf8("key1"))).array()
-        values.get("map.key2") == ((ByteBuffer)
+        dataAccessor.getEncrypted("map.key2") == ((ByteBuffer)
                 ((Map<Utf8, Object>) record.get("map")).get(new Utf8("key2"))).array()
-        values.get("array.1") == ((ByteBuffer)
+        dataAccessor.getEncrypted("array.1") == ((ByteBuffer)
                 ((List<Object>) record.get("array")).get(0)).array()
-        values.get("array.2") == ((ByteBuffer)
+        dataAccessor.getEncrypted("array.2") == ((ByteBuffer)
                 ((List<Object>) record.get("array")).get(1)).array()
-        values.get("complex.record") == ((ByteBuffer)
+        dataAccessor.getEncrypted("complex.record") == ((ByteBuffer)
                 ((GenericRecord) record.get("complex")).get("record")).array()
 
         where:
         record << [encryptedFirstRecord, encryptedSecondRecord]
     }
 
-    def 'getting all encrypted values from unencrypted data'() {
-        when: 'get all encrypted values from unencrypted data'
+    def 'getting encrypted value by nonexistent field'() {
+        setup: 'initialization'
         byte[] data = AvroTestUtils.serializeWithoutSchema(schema, schemaId, firstRecord)
-
         dataAccessor.deserialize(topic, data)
         dataAccessor.seekToNext()
-        Map<String, byte[]> values = dataAccessor.getAllEncrypted()
 
-        then: 'should be 0 values'
-        values.size() == 0
+        when: 'get value of nonexistent field'
+        dataAccessor.getEncrypted(fieldName)
+
+        then: 'thrown not-found exception'
+        thrown(CommonException)
+
+        where:
+        fieldName << ["test", "record.int2", "array.3", "map.key3", "union3.record"]
     }
 
     def 'getting all encrypted values from partially encrypted record'() {
@@ -404,15 +426,86 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
                 encryptedSchema, encryptedSchemaId, record)
         dataAccessor.deserialize(topic, data)
         dataAccessor.seekToNext()
-        Map<String, byte[]> values = dataAccessor.getAllEncrypted()
+
+        then: 'should be right values'
+        dataAccessor.getEncrypted("boolean") == ((ByteBuffer) record.get("boolean")).array()
+        dataAccessor.getEncrypted("map.key1") == ((ByteBuffer)
+                ((Map<Utf8, Object>) record.get("map")).get(new Utf8("key1"))).array()
+        dataAccessor.getEncrypted("array.1") == ((ByteBuffer)
+                ((List<Object>) record.get("array")).get(0)).array()
+
+        where:
+        record << [partiallyEncryptedFirstRecord, partiallyEncryptedSecondRecord]
+    }
+
+    def 'getting all EDEKs with simple types'() {
+        setup: 'initialization'
+        List<String> fieldNames = ["int", "boolean", "bytes", "double", "float",
+                                   "long", "string", "null", "null2", "enum", "fixed",
+                                   "union", "union2"]
+
+        when: 'get all encrypted values from data'
+        byte[] data = AvroTestUtils.serializeWithoutSchema(
+                encryptedSchema, encryptedSchemaId, record)
+        dataAccessor.deserialize(topic, data)
+        dataAccessor.seekToNext()
+        Map<String, byte[]> values = dataAccessor.getAllEDEKs()
+
+        then: 'should be right values'
+        values.size() == 19
+        fieldNames.every {
+            new String(values.get(it)) == "edek-" + it
+        }
+
+        where:
+        record << [encryptedFirstRecord, encryptedSecondRecord]
+    }
+
+    def 'getting all EDEKs with complex types'() {
+        when: 'get all encrypted values from data'
+        byte[] data = AvroTestUtils.serializeWithoutSchema(
+                encryptedSchema, encryptedSchemaId, record)
+        dataAccessor.deserialize(topic, data)
+        dataAccessor.seekToNext()
+        Map<String, byte[]> values = dataAccessor.getAllEDEKs()
+
+        then: 'should be right values'
+        new String(values.get("record.int")) == "edek-record.int"
+        new String(values.get("map.key1")) == "edek-map.key1"
+        new String(values.get("map.key2")) == "edek-map.key2"
+        new String(values.get("array.1")) == "edek-array.1"
+        new String(values.get("array.2")) == "edek-array.2"
+        new String(values.get("complex.record")) == "edek-complex.record"
+
+        where:
+        record << [encryptedFirstRecord, encryptedSecondRecord]
+    }
+
+    def 'getting all EDEKs from unencrypted data'() {
+        when: 'get all encrypted values from unencrypted data'
+        byte[] data = AvroTestUtils.serializeWithoutSchema(schema, schemaId, firstRecord)
+
+        dataAccessor.deserialize(topic, data)
+        dataAccessor.seekToNext()
+        Map<String, byte[]> values = dataAccessor.getAllEDEKs()
+
+        then: 'should be 0 values'
+        values.size() == 0
+    }
+
+    def 'getting all EDEKs from partially encrypted record'() {
+        when: 'get all encrypted values from data'
+        byte[] data = AvroTestUtils.serializeWithoutSchema(
+                encryptedSchema, encryptedSchemaId, record)
+        dataAccessor.deserialize(topic, data)
+        dataAccessor.seekToNext()
+        Map<String, byte[]> values = dataAccessor.getAllEDEKs()
 
         then: 'should be right values'
         values.size() == 3
-        values.get("boolean") == ((ByteBuffer) record.get("boolean")).array()
-        values.get("map.key1") == ((ByteBuffer)
-                ((Map<Utf8, Object>) record.get("map")).get(new Utf8("key1"))).array()
-        values.get("array.1") == ((ByteBuffer)
-                ((List<Object>) record.get("array")).get(0)).array()
+        new String(values.get("boolean")) == "edek-boolean"
+        new String(values.get("map.key1")) == "edek-map.key1"
+        new String(values.get("array.1")) == "edek-array.1"
 
         where:
         record << [partiallyEncryptedFirstRecord, partiallyEncryptedSecondRecord]
@@ -489,10 +582,13 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         dataAccessor.deserialize(topic, data)
         dataAccessor.seekToNext()
         dataAccessor.addEncrypted("boolean", ByteUtils.serialize(record.get("boolean")))
+        dataAccessor.addEDEK("boolean", "edek-boolean".getBytes())
         dataAccessor.addEncrypted("map.key1",
                 ByteUtils.serialize(((Map<Utf8, Object>) record.get("map")).get(new Utf8("key1"))))
+        dataAccessor.addEDEK("map.key1", "edek-map.key1".getBytes())
         dataAccessor.addEncrypted("array.1",
                 ByteUtils.serialize(((List<Object>) record.get("array")).get(0)))
+        dataAccessor.addEDEK("array.1", "edek-array.1".getBytes())
 
         byte[] bytes = dataAccessor.serialize()
         AvroTestUtils.IdRecord idRecord =
@@ -509,15 +605,20 @@ class AvroSchemaLessDataAccessorSpec extends Specification {
         for (String simpleField : simpleFields) {
             dataAccessor.addEncrypted(simpleField, AvroUtils.serialize(
                     schema.getField(simpleField).schema(), record.get(simpleField)))
+            dataAccessor.addEDEK(simpleField, ("edek-" + simpleField).getBytes())
         }
         dataAccessor.addEncrypted("record.int",
                 ByteUtils.serialize(((GenericRecord) record.get("record")).get("int")))
+        dataAccessor.addEDEK("record.int", "edek-record.int".getBytes())
         dataAccessor.addEncrypted("map.key2",
                 ByteUtils.serialize(((Map<Utf8, Object>) record.get("map")).get(new Utf8("key2"))))
+        dataAccessor.addEDEK("map.key2", "edek-map.key2".getBytes())
         dataAccessor.addEncrypted("array.2",
                 ByteUtils.serialize(((List<Object>) record.get("array")).get(1)))
+        dataAccessor.addEDEK("array.2", "edek-array.2".getBytes())
         dataAccessor.addEncrypted("complex.record",
                 ByteUtils.serialize(((GenericRecord) record.get("complex")).get("record")))
+        dataAccessor.addEDEK("complex.record", "edek-complex.record".getBytes())
 
         bytes = dataAccessor.serialize()
         idRecord = AvroTestUtils.deserializeWithoutSchema(encryptedSchema, bytes)
