@@ -193,54 +193,6 @@ public class AvroTestUtils {
         return secondRecord;
     }
 
-    //    /**
-//     * @return unencrypted record
-//     */
-//    public static GenericRecord getRecord() {
-//        GenericRecord record = new GenericData.Record(schema);
-//        record.put("int", RANDOM.nextInt());
-//        record.put("unencrypted", RANDOM.nextInt());
-//        record.put("boolean", RANDOM.nextBoolean());
-//        record.put("bytes", ByteBuffer.wrap(UUID.randomUUID().toString().getBytes()));
-//        record.put("double", RANDOM.nextDouble());
-//        record.put("float", RANDOM.nextFloat());
-//        record.put("long", RANDOM.nextLong());
-//        record.put("string", new Utf8(UUID.randomUUID().toString()));
-//        record.put("null", null);
-//        if (RANDOM.nextBoolean()) {
-//            record.put("null2", null);
-//        } else {
-//            record.put("null2", RANDOM.nextInt());
-//        }
-//        if (RANDOM.nextBoolean()) {
-//            record.put("enum", new GenericData.EnumSymbol(enumSchema, "e1"));
-//        } else {
-//            record.put("enum", new GenericData.EnumSymbol(enumSchema, "e2"));
-//        }
-//        record.put("fixed", new GenericData.Fixed(
-//                fixedSchema, UUID.randomUUID().toString().getBytes()));
-//        GenericRecord innerRecord = new GenericData.Record(innerRecordSchema);
-//        innerRecord.put("int", 4);
-//        record.put("record", innerRecord);
-//        Map<Utf8, Object> map1 = new HashMap<>();
-//        map1.put(new Utf8("key1"), 5);
-//        map1.put(new Utf8("key2"), 6);
-//        record.put("map", map1);
-//        List<Object> list = new ArrayList<>();
-//        list.add(ByteBuffer.wrap("1".getBytes()));
-//        list.add(ByteBuffer.wrap("2".getBytes()));
-//        record.put("array", list);
-//        record.put("union", 7);
-//        Map<Utf8, Integer> map2 = new HashMap<>();
-//        map2.put(new Utf8("int"), 53);
-//        record.put("union2", map2);
-//        record.put("union3", map2);
-//        GenericRecord complexInnerRecord = new GenericData.Record(complexInnerRecordSchema);
-//        complexInnerRecord.put("record", innerRecord);
-//        record.put("complex", complexInnerRecord);
-//        return record;
-//    }
-
     /**
      * Copy all fields from input record and put it to the new record
      *

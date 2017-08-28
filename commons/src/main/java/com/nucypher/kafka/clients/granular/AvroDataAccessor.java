@@ -5,7 +5,7 @@ import com.nucypher.kafka.utils.AvroUtils;
 import com.nucypher.kafka.utils.GranularUtils;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
-import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.file.GenericDataFileWriter;
 import org.apache.avro.file.SeekableByteArrayInput;
 import org.apache.avro.file.SeekableInput;
 import org.apache.avro.generic.GenericDatumReader;
@@ -36,11 +36,11 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
     private static final String ENCRYPTED_PROPERTY = "encrypted";
 
     //TODO change to external library
-    protected Map<SchemaCacheKey, Schema> schemasCache = new HashMap<>();
+    protected Map<SchemaCacheKey, SchemaCacheValue> schemasCache = new HashMap<>();
 
     private GenericRecord currentRecord;
     private DataFileReader<GenericRecord> dataReader;
-    private DataFileWriter<GenericRecord> dataWriter;
+    private GenericDataFileWriter dataWriter;
     private ByteArrayOutputStream dataOutputStream;
 
     private MutableSchema mutableSchema;
@@ -70,6 +70,16 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
         @Override
         public int hashCode() {
             return Objects.hash(schema, fields);
+        }
+    }
+
+    private static class SchemaCacheValue {
+        private Schema schema;
+        private String schemaString;
+
+        public SchemaCacheValue(Schema schema, String schemaString) {
+            this.schema = schema;
+            this.schemaString = schemaString;
         }
     }
 
@@ -242,18 +252,19 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
     private void initializeOutput() {
         dataOutputStream = new ByteArrayOutputStream();
         DatumWriter<GenericRecord> writer = new GenericDatumWriter<>();
-        dataWriter = new DataFileWriter<>(writer);
+        dataWriter = new GenericDataFileWriter(writer);
         try {
-            Schema schema;
+            SchemaCacheValue value;
             SchemaCacheKey key = new SchemaCacheKey(
                     mutableSchema.getInitialSchema(), outputEncrypted.keySet());
             if (schemasCache.containsKey(key)) {
-                schema = schemasCache.get(key);
+                value = schemasCache.get(key);
             } else {
-                schema = mutableSchema.toSchema();
-                schemasCache.put(key, schema);
+                Schema schema = mutableSchema.toSchema();
+                value = new SchemaCacheValue(schema, schema.toString());
+                schemasCache.put(key, value);
             }
-            dataWriter.create(schema, dataOutputStream);
+            dataWriter.create(value.schema, value.schemaString, dataOutputStream);
         } catch (IOException e) {
             throw new CommonException(e);
         }
