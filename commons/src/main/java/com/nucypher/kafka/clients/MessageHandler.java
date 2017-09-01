@@ -66,26 +66,26 @@ public class MessageHandler {
      * @return encrypted data
      */
     public byte[] encrypt(String topic, byte[] data) {
-        return encryptMessage(topic, data).serialize();
+        Key dek = keyManager.getDEK(topic);
+        byte[] edek = keyManager.encryptDEK(dek, topic);
+        Message message = encryptMessage(data, dek);
+        message.setEDEK(new EncryptedDataEncryptionKey(edek));
+        return message.serialize();
     }
 
     /**
      * Encrypt byte array
      *
-     * @param topic topic
      * @param data  data
+     * @param dek   DEK bytes
      * @return encrypted {@link Message}
      */
-    public Message encryptMessage(String topic, byte[] data) {
-        Key dek = keyManager.getDEK(topic);
-        byte[] edek = keyManager.encryptDEK(dek, topic);
-
+    public Message encryptMessage(byte[] data, Key dek) {
         byte[] iv = new byte[dek.getEncoded().length];
         secureRandom.nextBytes(iv);
 
         byte[] encryptedData = cipher.encrypt(data, dek, iv);
-        return new Message(
-                encryptedData, iv, new EncryptedDataEncryptionKey(edek));
+        return new Message(encryptedData, iv);
     }
 
     /**
@@ -96,7 +96,11 @@ public class MessageHandler {
      */
     public byte[] decrypt(byte[] payload) {
         Message message = Message.deserialize(payload);
-        return decryptMessage(message);
+        byte[] edek = message.getEDEK().getBytes();
+        boolean isComplex = message.getEDEK().isComplex();
+
+        Key dek = keyManager.decryptEDEK(edek, isComplex);
+        return decryptMessage(message, dek);
     }
 
     /**
@@ -105,13 +109,9 @@ public class MessageHandler {
      * @param message {@link Message}
      * @return decrypted data
      */
-    public byte[] decryptMessage(Message message) {
+    public byte[] decryptMessage(Message message, Key dek) {
         byte[] data = message.getPayload();
-        byte[] edek = message.getEDEK().getBytes();
         byte[] iv = message.getIV();
-        boolean isComplex = message.getEDEK().isComplex();
-
-        Key dek = keyManager.decryptEDEK(edek, isComplex);
         return cipher.decrypt(data, dek, iv);
     }
 
@@ -145,4 +145,10 @@ public class MessageHandler {
         return new EncryptedDataEncryptionKey(bytes, reKey.isComplex());
     }
 
+    /**
+     * @return DEK manager
+     */
+    public DataEncryptionKeyManager getDataEncryptionKeyManager() {
+        return keyManager;
+    }
 }

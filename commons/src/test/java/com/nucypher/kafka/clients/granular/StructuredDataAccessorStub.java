@@ -153,8 +153,12 @@ public class StructuredDataAccessorStub implements StructuredDataAccessor {
     @Override
     public void addUnencrypted(String field, byte[] data) {
         Map<String, String> fields = lines.get(index).fields;
-        Map<String, String> encrypted = lines.get(index).encrypted;
         fields.put(field, new String(data));
+    }
+
+    @Override
+    public void removeEDEK(String field) {
+        Map<String, String> encrypted = lines.get(index).encrypted;
         if (encrypted.containsKey(field)) {
             encrypted.remove(field);
         }

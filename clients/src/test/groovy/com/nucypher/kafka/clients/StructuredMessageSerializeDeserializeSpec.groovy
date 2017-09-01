@@ -13,6 +13,7 @@ import spock.lang.Specification
 
 import java.security.KeyPair
 import java.security.PrivateKey
+import java.util.regex.Pattern
 
 import static TestUtils.PEM
 
@@ -48,12 +49,14 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
                         keyPair.private,
                         StructuredDataAccessorStub.class
                 )
+        Pattern allPattern = Pattern.compile(encryptedMessageAll, Pattern.DOTALL)
+        Pattern aFieldPattern = Pattern.compile(encryptedMessageAField, Pattern.DOTALL)
 
         when: 'encrypt all fields'
         byte[] bytes = serializer.serialize(topic, message)
 
         then: '"a" and "b" fields should be encrypted'
-        new String(bytes).matches(encryptedMessageAll)
+        allPattern.matcher(new String(bytes)).matches()
 
         when: 'decrypt all fields'
         String decryptedMessage = deserializer.deserialize(topic, bytes)
@@ -73,7 +76,7 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         bytes = serializer.serialize(topic, message)
 
         then: 'only "a" field should be encrypted'
-        new String(bytes).matches(encryptedMessageAField)
+        aFieldPattern.matcher(new String(bytes)).matches()
 
         when: 'decrypt "a" field'
         decryptedMessage = deserializer.deserialize(topic, bytes)
@@ -84,19 +87,15 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         where:
         message << ["{\"a\":\"a\", \"b\":\"b\"}",
                     "{\"a\":\"a\", \"b\":\"b\"}\n{\"a\":\"c\", \"b\":\"d\"}"]
-        encryptedMessageAll << ["\\{\"a\":\"\\w+\", \"b\":\"\\w+\", " +
-                                        "\"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}",
-                                "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", " +
-                                        "\"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}\n" +
-                                        "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", " +
-                                        "\"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}"
+        encryptedMessageAll << [
+                ".+\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}.+a.+b.+",
+                ".+\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}\n" +
+                        "\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}.+a.+b.+"
         ]
-        encryptedMessageAField << ["\\{\"a\":\"\\w+\", \"b\":\"b\", " +
-                                           "\"encrypted\":\\{\"a\":\"\\w+\"}}",
-                                   "\\{\"a\":\"\\w+\", \"b\":\"b\", " +
-                                           "\"encrypted\":\\{\"a\":\"\\w+\"}}\n" +
-                                           "\\{\"a\":\"\\w+\", \"b\":\"d\", " +
-                                           "\"encrypted\":\\{\"a\":\"\\w+\"}}"
+        encryptedMessageAField << [
+                ".+\\{\"a\":\"\\w+\", \"b\":\"b\"}.+a.+",
+                ".+\\{\"a\":\"\\w+\", \"b\":\"b\"}\n" +
+                        "\\{\"a\":\"\\w+\", \"b\":\"d\"}.+a.+"
         ]
     }
 
@@ -128,13 +127,14 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
                         privateKeyA,
                         StructuredDataAccessorStub.class
                 )
+        Pattern allPattern = Pattern.compile(
+                ".+\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}.+a.+b.+", Pattern.DOTALL)
 
         when: 'encrypt fields with different keys'
         byte[] bytes = serializer.serialize(topic, message)
 
         then: '"a" and "b" fields should be decrypted'
-        new String(bytes).matches(
-                "\\{\"a\":\"\\w+\", \"b\":\"\\w+\", \"encrypted\":\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}}")
+        allPattern.matcher(new String(bytes)).matches()
 
         when: 'decrypt all fields'
         String decryptedMessage = deserializer.deserialize(topic, bytes)

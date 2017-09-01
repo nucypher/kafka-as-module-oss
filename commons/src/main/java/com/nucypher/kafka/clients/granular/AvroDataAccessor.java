@@ -34,6 +34,7 @@ import java.util.Set;
 public class AvroDataAccessor extends AbstractAvroDataAccessor {
 
     private static final String ENCRYPTED_PROPERTY = "encrypted";
+    private static final String EDEKS_PROPERTY = "edeks";
 
     //TODO change to external library
     protected Map<SchemaCacheKey, SchemaCacheValue> schemasCache = new HashMap<>();
@@ -44,18 +45,23 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
     private ByteArrayOutputStream dataOutputStream;
 
     private MutableSchema mutableSchema;
+    private Map<String, String> inputEncrypted;
+    private Map<String, String> outputEncrypted;
     //TODO change EDEK value to bytes
-    private Map<String, List<String>> inputEncrypted;
-    private Map<String, List<String>> outputEncrypted;
+    private Map<String, String> edeks;
     private Map<String, FieldObject> fieldsCache;
 
     private static class SchemaCacheKey {
         private Schema schema;
         private Set<String> fields;
+        private Set<String> edeks;
 
-        public SchemaCacheKey(Schema schema, Set<String> fields) {
+        public SchemaCacheKey(Schema schema,
+                              Set<String> fields,
+                              Set<String> edeks) {
             this.schema = schema;
             this.fields = fields;
+            this.edeks = edeks;
         }
 
         @Override
@@ -64,12 +70,13 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
             if (o == null || getClass() != o.getClass()) return false;
             SchemaCacheKey that = (SchemaCacheKey) o;
             return Objects.equals(schema, that.schema) &&
-                    Objects.equals(fields, that.fields);
+                    Objects.equals(fields, that.fields) &&
+                    Objects.equals(edeks, that.edeks);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(schema, fields);
+            return Objects.hash(schema, fields, edeks);
         }
     }
 
@@ -108,12 +115,22 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
             throw new CommonException(
                     "Property '%s' reserved for map of encrypted fields", ENCRYPTED_PROPERTY);
         }
-        inputEncrypted = (Map<String, List<String>>) encryptedProp;
+        inputEncrypted = (Map<String, String>) encryptedProp;
         if (inputEncrypted == null) {
             inputEncrypted = new HashMap<>();
         }
         outputEncrypted = new HashMap<>(inputEncrypted);
-        mutableSchema = new MutableSchema(schema, outputEncrypted);
+
+        Object edeksProp = schema.getObjectProp(EDEKS_PROPERTY);
+        if (edeksProp != null && !(edeksProp instanceof Map)) {
+            throw new CommonException(
+                    "Property '%s' reserved for EDEKs", EDEKS_PROPERTY);
+        }
+        edeks = (Map<String, String>) edeksProp;
+        if (edeks == null) {
+            edeks = new HashMap<>();
+        }
+        mutableSchema = new MutableSchema(schema, outputEncrypted, edeks);
 
         fieldsCache = new HashMap<>();
     }
@@ -158,9 +175,9 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
         if (inputEncrypted == null || inputEncrypted.isEmpty()) {
             return fields;
         }
-        for (Map.Entry<String, List<String>> entry : inputEncrypted.entrySet()) {
+        for (Map.Entry<String, String> entry : edeks.entrySet()) {
             String field = entry.getKey();
-            String edek = entry.getValue().get(1);
+            String edek = entry.getValue();
             fields.put(field, DatatypeConverter.parseBase64Binary(edek));
         }
         return fields;
@@ -183,49 +200,35 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
         FieldObject object = getFieldObject(field);
         object.setValue(ByteBuffer.wrap(data));
 
-        if (!outputEncrypted.keySet().contains(field) ||
-                outputEncrypted.get(field).get(0) == null) {
-            List<String> encrypted = outputEncrypted.get(field);
-            if (encrypted == null) {
-                encrypted = new ArrayList<>(2);
-                encrypted.add(null);
-                encrypted.add(null);
-                outputEncrypted.put(field, encrypted);
-            }
-            if (encrypted.get(0) == null) {
-                encrypted.set(0, object.getInitialSchema().toString());
-                object.updateSchema(Schema.create(Schema.Type.BYTES));
-            }
+        if (!outputEncrypted.containsKey(field)) {
+            outputEncrypted.put(field, object.getInitialSchema().toString());
+            object.updateSchema(Schema.create(Schema.Type.BYTES));
         }
     }
 
     @Override
     public void addEDEK(String field, byte[] edek) {
-        List<String> encrypted = outputEncrypted.get(field);
-        if (encrypted == null) {
-            encrypted = new ArrayList<>(2);
-            encrypted.add(null);
-            encrypted.add(null);
-            outputEncrypted.put(field, encrypted);
-        }
-        if (encrypted.get(1) == null) {
-            encrypted.set(1, DatatypeConverter.printBase64Binary(edek));
-        }
+        edeks.put(field, DatatypeConverter.printBase64Binary(edek));
     }
 
     @Override
     public void addUnencrypted(String field, byte[] data) {
         FieldObject object = getFieldObject(field);
-        String schemaString = inputEncrypted.get(field).get(0);
+        String schemaString = inputEncrypted.get(field);
         Schema schema = new Schema.Parser().parse(schemaString);
 
         Object value = AvroUtils.deserialize(schema, data);
         object.setValue(value);
 
-        if (outputEncrypted.keySet().contains(field)) {
+        if (outputEncrypted.containsKey(field)) {
             object.setSchema(schema);
             outputEncrypted.remove(field);
         }
+    }
+
+    @Override
+    public void removeEDEK(String field) {
+        edeks.remove(field);
     }
 
     @Override
@@ -256,7 +259,9 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
         try {
             SchemaCacheValue value;
             SchemaCacheKey key = new SchemaCacheKey(
-                    mutableSchema.getInitialSchema(), outputEncrypted.keySet());
+                    mutableSchema.getInitialSchema(),
+                    outputEncrypted.keySet(),
+                    edeks.keySet());
             if (schemasCache.containsKey(key)) {
                 value = schemasCache.get(key);
             } else {
@@ -426,15 +431,19 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
         private Map<String, MutableSchema> updatedChildFields;
         private Schema schema;
         private Schema initialChildSchema;
-        private Map<String, List<String>> encrypted;
+        private Map<String, String> encrypted;
+        private Map<String, String> edeks;
 
         public MutableSchema(Schema schema) {
             this.schema = schema;
         }
 
-        public MutableSchema(Schema schema, Map<String, List<String>> encrypted) {
+        public MutableSchema(Schema schema,
+                             Map<String, String> encrypted,
+                             Map<String, String> edeks) {
             this(schema);
             this.encrypted = encrypted;
+            this.edeks = edeks;
         }
 
         /**
@@ -567,10 +576,15 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
          *
          * @return the final schema
          */
+        @SuppressWarnings("unchecked")
         public Schema toSchema() {
             switch (schema.getType()) {
                 case RECORD:
-                    if (updatedChildFields == null) {
+                    Map<String, String> oldEDEKs =
+                        (Map<String, String>) schema.getObjectProp(EDEKS_PROPERTY);
+                    if (updatedChildFields == null &&
+                            (oldEDEKs == null && (edeks == null || edeks.isEmpty())) ||
+                            (oldEDEKs != null && oldEDEKs.equals(edeks))) {
                         return schema;
                     }
                     return toRecordSchema();
@@ -593,7 +607,8 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
             List<Schema.Field> fields = new ArrayList<>();
             for (Schema.Field field : schema.getFields()) {
                 Schema.Field newField;
-                if (!updatedChildFields.keySet().contains(field.name())) {
+                if (updatedChildFields == null ||
+                        !updatedChildFields.keySet().contains(field.name())) {
                     newField = new Schema.Field(
                             field.name(),
                             field.schema(),
@@ -607,7 +622,6 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
                             fieldSchema,
                             field.doc(),
                             field.defaultVal());
-//                            (Object) null);
                 }
                 fields.add(newField);
                 for (String alias : field.aliases()) {
@@ -623,12 +637,16 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
                     fields);
             for (Map.Entry<String, Object> property : schema.getObjectProps().entrySet()) {
                 String propertyName = property.getKey();
-                if (!propertyName.equals(ENCRYPTED_PROPERTY)) {
+                if (!propertyName.equals(ENCRYPTED_PROPERTY) &&
+                        !propertyName.equals(EDEKS_PROPERTY)) {
                     newSchema.addProp(propertyName, property.getValue());
                 }
             }
             if (encrypted != null && !encrypted.isEmpty()) {
                 newSchema.addProp(ENCRYPTED_PROPERTY, encrypted);
+            }
+            if (edeks != null && !edeks.isEmpty()) {
+                newSchema.addProp(EDEKS_PROPERTY, edeks);
             }
             for (String alias : schema.getAliases()) {
                 newSchema.addAlias(alias);
@@ -650,7 +668,7 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
          * @param path      parent path
          * @param encrypted encrypted fields
          */
-        public void setEncryptedItems(String path, Map<String, List<String>> encrypted) {
+        public void setEncryptedItems(String path, Map<String, String> encrypted) {
             if (encryptedItems != null) {
                 return;
             }
@@ -664,7 +682,7 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
             }
             if (itemPath != null) {
                 initialChildSchema = new Schema.Parser().parse(
-                        encrypted.get(itemPath).get(0));
+                        encrypted.get(itemPath));
             }
         }
 

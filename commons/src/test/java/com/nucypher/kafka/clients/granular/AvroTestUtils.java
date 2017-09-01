@@ -16,6 +16,7 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.reflect.ReflectData;
 import org.apache.avro.util.Utf8;
+import org.bouncycastle.util.encoders.Base64;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -371,4 +372,15 @@ public class AvroTestUtils {
         }
     }
 
+    /**
+     * Add EDEKs to map for fields
+     *
+     * @param edeks  map of EDEKs
+     * @param fields fields
+     */
+    public static void addEDEKs(HashMap<String, String> edeks, String... fields) {
+        for (String field : fields) {
+            edeks.put(field, Base64.toBase64String(("edek-" + field).getBytes()));
+        }
+    }
 }

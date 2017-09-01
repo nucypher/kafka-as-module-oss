@@ -83,6 +83,13 @@ public interface StructuredDataAccessor {
     public void addUnencrypted(String field, byte[] data);
 
     /**
+     * Remove EDEK
+     *
+     * @param field field name
+     */
+    public void removeEDEK(String field);
+
+    /**
      * @return {@code true} if the iteration has more elements
      */
     public boolean hasNext();

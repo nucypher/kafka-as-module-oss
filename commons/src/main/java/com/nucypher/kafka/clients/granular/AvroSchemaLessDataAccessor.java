@@ -121,7 +121,8 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
             initialSchema = getInitialSchema((Integer) initialSchemaId);
             for (Map.Entry<?, ?> entry :
                     ((Map<String, ?>) currentRecord.get(EDEKS_FIELD)).entrySet()) {
-                edeks.put(entry.getKey().toString(), entry.getValue().toString());
+                Object value = entry.getValue();
+                edeks.put(entry.getKey().toString(), value != null ? value.toString() : "");
             }
         } else {
             initialSchema = schema;
@@ -268,6 +269,9 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
             return fields;
         }
         for (Map.Entry<String, String> entry : edeks.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                continue;
+            }
             String field = entry.getKey();
             fields.put(field, DatatypeConverter.parseBase64Binary(entry.getValue()));
         }
@@ -290,6 +294,9 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
     public void addEncrypted(String field, byte[] data) {
         FieldObject object = getFieldObject(field);
         object.setValue(ByteBuffer.wrap(data));
+        if (!edeks.containsKey(field)) {
+            edeks.put(field, "");
+        }
     }
 
     @Override
@@ -302,9 +309,13 @@ public class AvroSchemaLessDataAccessor extends AbstractAvroDataAccessor {
         FieldObject object = getFieldObject(field);
         Object value = AvroUtils.deserialize(object.getSchema(), data);
         object.setValue(value);
+        edeks.remove(field);
+    }
 
+    @Override
+    public void removeEDEK(String field) {
         if (edeks.containsKey(field)) {
-            edeks.remove(field);
+            edeks.put(field, "");
         }
     }
 

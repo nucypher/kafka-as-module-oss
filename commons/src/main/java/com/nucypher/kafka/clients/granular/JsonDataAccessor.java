@@ -23,8 +23,8 @@ import java.util.Set;
 public class JsonDataAccessor extends OneMessageDataAccessor {
 
     private static final String EDEKS_FIELD = "edeks";
-    private static final String EDEK_FIELD = "edek";
-    private static final String DATA_FIELD = "data";
+//    private static final String EDEK_FIELD = "edek";
+//    private static final String DATA_FIELD = "data";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private JsonNode root;
@@ -43,20 +43,18 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
         } catch (IOException e) {
             throw new CommonException(e, "Unable to parse JSON data '%s'", new String(data));
         }
+        if (!root.isObject()) {
+            throw new CommonException("JSON should be object");
+        }
         extractEDEKs();
         setEmpty(root.size() == 0);
         fieldsCache = new HashMap<>();
     }
 
     private void extractEDEKs() {
-        if (!root.isObject()) {
-            return;
-        }
         JsonNode edeks = root.get(EDEKS_FIELD);
         if (edeks == null || edeks.isNull()) {
             edeksNode = MAPPER.createObjectNode();
-            ObjectNode objectRoot = (ObjectNode) root;
-            objectRoot.set(EDEKS_FIELD, edeksNode);
             return;
         }
         if (!edeks.isObject()) {
@@ -78,8 +76,12 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
     public byte[] serialize() {
         if ((edeksNode == null ||
                 edeksNode.size() == 0) &&
-                root.isObject()) {
+                root.get(EDEKS_FIELD) != null) {
             ((ObjectNode) root).remove(EDEKS_FIELD);
+        } else if (edeksNode.size() > 0 &&
+                root.get(EDEKS_FIELD) == null) {
+            ObjectNode objectRoot = (ObjectNode) root;
+            objectRoot.set(EDEKS_FIELD, edeksNode);
         }
         return getBytes(root);
     }
@@ -94,8 +96,8 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
                                        JsonNode node,
                                        String fieldName,
                                        boolean loadData) {
-        JsonNode edek = node.get(EDEK_FIELD);
-        if (node.isObject() && edek == null) {
+//        JsonNode edek = node.get(EDEK_FIELD);
+        if (node.isObject()) {// && edek == null) {
             Iterator<Map.Entry<String, JsonNode>> iterator = node.fields();
             while (iterator.hasNext()) {
                 Map.Entry<String, JsonNode> entry = iterator.next();
@@ -103,8 +105,8 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
                     getAll(fields, fieldName, entry.getKey(), entry.getValue(), loadData);
                 }
             }
-        } else if (node.isObject() && edek != null) {
-            fields.put(fieldName, loadData ? edek.asText() : null);
+//        } else if (node.isObject() && edek != null) {
+//            fields.put(fieldName, loadData && !edek.isNull() ? edek.asText() : null);
         } else {
             int i = 0;
             for (JsonNode child : node) {
@@ -134,19 +136,19 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
     @Override
     public Map<String, byte[]> getAllEDEKs() {
         Map<String, byte[]> fields = new HashMap<>();
-        if (root.isObject()) {
-            Iterator<Map.Entry<String, JsonNode>> iterator = edeksNode.fields();
-            while (iterator.hasNext()) {
-                Map.Entry<String, JsonNode> entry = iterator.next();
-                fields.put(entry.getKey(), getBytes(entry.getValue().asText()));
-            }
-        } else {
-            Map<String, String> fieldsData =
-                    getAll(new HashMap<String, String>(), root, "", true);
-            for (Map.Entry<String, String> entry : fieldsData.entrySet()) {
-                fields.put(entry.getKey(), getBytes(entry.getValue()));
-            }
+//        if (root.isObject()) {
+        Iterator<Map.Entry<String, JsonNode>> iterator = edeksNode.fields();
+        while (iterator.hasNext()) {
+            Map.Entry<String, JsonNode> entry = iterator.next();
+            fields.put(entry.getKey(), getBytes(entry.getValue().asText()));
         }
+//        } else {
+//            Map<String, String> fieldsData =
+//                    getAll(new HashMap<String, String>(), root, "", true);
+//            for (Map.Entry<String, String> entry : fieldsData.entrySet()) {
+//                fields.put(entry.getKey(), getBytes(entry.getValue()));
+//            }
+//        }
         return fields;
     }
 
@@ -160,11 +162,11 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
 
     @Override
     public byte[] getEncrypted(String field) {
-        if (root.isObject()) {
-            return getBytesWithoutQuotes(getUnencrypted(field));
-        } else {
-            return getBytesWithoutQuotes(getUnencrypted(field + "." + DATA_FIELD));
-        }
+//        if (root.isObject()) {
+        return getBytesWithoutQuotes(getUnencrypted(field));
+//        } else {
+//            return getBytesWithoutQuotes(getUnencrypted(field + "." + DATA_FIELD));
+//        }
     }
 
     @Override
@@ -222,38 +224,38 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
     public void addEncrypted(String field, byte[] data) {
         JsonNode dataNode = TextNode.valueOf(DatatypeConverter.printBase64Binary(data));
         FieldObject fieldObject = getFieldObject(field);
-        if (root.isObject()) {
-            fieldObject.setValue(dataNode);
-        } else {
-            ObjectNode objectNode;
-            if (!fieldObject.getValue().isObject() || !fieldObject.getValue().has(EDEK_FIELD)) {
-                objectNode = MAPPER.createObjectNode();
-                objectNode.set(EDEK_FIELD, null);
-                fieldObject.setValue(objectNode);
-            } else {
-                objectNode = (ObjectNode) fieldObject.getValue();
-            }
-            objectNode.set(DATA_FIELD, dataNode);
-        }
+//        if (root.isObject()) {
+        fieldObject.setValue(dataNode);
+//        } else {
+//            ObjectNode objectNode;
+//            if (!fieldObject.getValue().isObject() || !fieldObject.getValue().has(EDEK_FIELD)) {
+//                objectNode = MAPPER.createObjectNode();
+//                objectNode.set(EDEK_FIELD, null);
+//                fieldObject.setValue(objectNode);
+//            } else {
+//                objectNode = (ObjectNode) fieldObject.getValue();
+//            }
+//            objectNode.set(DATA_FIELD, dataNode);
+//        }
     }
 
     @Override
     public void addEDEK(String field, byte[] data) {
         JsonNode dataNode = TextNode.valueOf(DatatypeConverter.printBase64Binary(data));
-        if (root.isObject()) {
-            edeksNode.set(field, dataNode);
-        } else {
-            FieldObject fieldObject = getFieldObject(field);
-            ObjectNode objectNode;
-            if (!fieldObject.getValue().isObject() || !fieldObject.getValue().has(EDEK_FIELD)) {
-                objectNode = MAPPER.createObjectNode();
-                objectNode.set(DATA_FIELD, fieldObject.getValue());
-                fieldObject.setValue(objectNode);
-            } else {
-                objectNode = (ObjectNode) fieldObject.getValue();
-            }
-            objectNode.set(EDEK_FIELD, dataNode);
-        }
+//        if (root.isObject()) {
+        edeksNode.set(field, dataNode);
+//        } else {
+//            FieldObject fieldObject = getFieldObject(field);
+//            ObjectNode objectNode;
+//            if (!fieldObject.getValue().isObject() || !fieldObject.getValue().has(EDEK_FIELD)) {
+//                objectNode = MAPPER.createObjectNode();
+//                objectNode.set(DATA_FIELD, fieldObject.getValue());
+//                fieldObject.setValue(objectNode);
+//            } else {
+//                objectNode = (ObjectNode) fieldObject.getValue();
+//            }
+//            objectNode.set(EDEK_FIELD, dataNode);
+//        }
     }
 
     @Override
@@ -265,7 +267,10 @@ public class JsonDataAccessor extends OneMessageDataAccessor {
             throw new CommonException(e, "Unable to parse JSON data '%s'", new String(data));
         }
         getFieldObject(field).setValue(dataNode);
+    }
 
+    @Override
+    public void removeEDEK(String field) {
         edeksNode.remove(field);
     }
 
