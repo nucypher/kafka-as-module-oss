@@ -37,9 +37,9 @@ class AvroDataAccessorSpec extends Specification {
     @Shared
     GenericRecord partiallyEncryptedFirstRecord
     @Shared
-    GenericRecord partiallyEncryptedFirstNoEDEKsRecord
-    @Shared
     GenericRecord partiallyEncryptedSecondRecord
+    @Shared
+    GenericRecord partiallyEncryptedFirstNoEDEKsRecord
     @Shared
     GenericRecord partiallyEncryptedSecondNoEDEKsRecord
     @Shared
@@ -139,11 +139,11 @@ class AvroDataAccessorSpec extends Specification {
         encrypted.put("map.key1", SchemaBuilder.builder().intType().toString())
         encrypted.put("array.1", SchemaBuilder.builder().bytesType().toString())
         partiallyEncryptedNoEDEKsSchema.addProp("encrypted", encrypted)
-        partiallyEncryptedSchema = new Schema.Parser().parse(partiallyEncryptedNoEDEKsSchema.toString())
+        partiallyEncryptedSchema = new Schema.Parser().parse(
+                partiallyEncryptedNoEDEKsSchema.toString())
         edeks = new HashMap<>()
         AvroTestUtils.addEDEKs(edeks, "boolean", "map.key1", "array.1")
         partiallyEncryptedSchema.addProp("edeks", edeks)
-
 
         Map<Utf8, Integer> map = firstRecord.get("map") as Map<Utf8, Integer>
         List<ByteBuffer> list = firstRecord.get("array") as List<ByteBuffer>
@@ -178,8 +178,10 @@ class AvroDataAccessorSpec extends Specification {
         AvroTestUtils.encryptList(encryptedList, 0)
         partiallyEncryptedFirstRecord.put("array", encryptedList)
 
-        partiallyEncryptedFirstNoEDEKsRecord = new GenericData.Record(partiallyEncryptedNoEDEKsSchema)
-        AvroTestUtils.copyAllFields(partiallyEncryptedFirstRecord, partiallyEncryptedFirstNoEDEKsRecord)
+        partiallyEncryptedFirstNoEDEKsRecord = new GenericData.Record(
+                partiallyEncryptedNoEDEKsSchema)
+        AvroTestUtils.copyAllFields(partiallyEncryptedFirstRecord,
+                partiallyEncryptedFirstNoEDEKsRecord)
 
         map = secondRecord.get("map") as Map<Utf8, Integer>
         list = secondRecord.get("array") as List<ByteBuffer>
@@ -214,8 +216,10 @@ class AvroDataAccessorSpec extends Specification {
         AvroTestUtils.encryptList(encryptedList, 0)
         partiallyEncryptedSecondRecord.put("array", encryptedList)
 
-        partiallyEncryptedSecondNoEDEKsRecord = new GenericData.Record(partiallyEncryptedNoEDEKsSchema)
-        AvroTestUtils.copyAllFields(partiallyEncryptedSecondRecord, partiallyEncryptedSecondNoEDEKsRecord)
+        partiallyEncryptedSecondNoEDEKsRecord = new GenericData.Record(
+                partiallyEncryptedNoEDEKsSchema)
+        AvroTestUtils.copyAllFields(partiallyEncryptedSecondRecord,
+                partiallyEncryptedSecondNoEDEKsRecord)
     }
 
     def 'getting next element'() {
@@ -871,6 +875,24 @@ class AvroDataAccessorSpec extends Specification {
 
         then: 'should be identical schemas'
         firstSchema == secondSchema
+
+        when: 'add new EDEK to data'
+        data = AvroTestUtils.serialize(schema, firstRecord)
+        dataAccessor.deserialize(topic, data)
+        dataAccessor.seekToNext()
+        dataAccessor.addEncrypted("boolean", ByteUtils.serialize(secondRecord.get("boolean")))
+        dataAccessor.addEDEK("boolean", "edek-boolean2".getBytes())
+        dataAccessor.addEncrypted("map.key1", ByteUtils.serialize(
+                ((Map<Utf8, Object>) secondRecord.get("map")).get(new Utf8("key1"))))
+        dataAccessor.addEDEK("map.key1", "edek-map.key1".getBytes())
+        dataAccessor.addEncrypted("array.1",
+                ByteUtils.serialize(((List<Object>) secondRecord.get("array")).get(0)))
+        dataAccessor.addEDEK("array.1", "edek-array.1".getBytes())
+        bytes = dataAccessor.serialize()
+        Schema thirdSchema = AvroTestUtils.deserialize(bytes).schema
+
+        then: 'should be different schemas'
+        thirdSchema != secondSchema
     }
 
 }

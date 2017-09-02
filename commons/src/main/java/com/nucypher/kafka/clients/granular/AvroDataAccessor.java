@@ -31,6 +31,7 @@ import java.util.Set;
 /**
  * {@link StructuredDataAccessor} for Avro format
  */
+//TODO simplify encrypted schema, move EDEKs field to Avro object
 public class AvroDataAccessor extends AbstractAvroDataAccessor {
 
     private static final String ENCRYPTED_PROPERTY = "encrypted";
@@ -54,11 +55,11 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
     private static class SchemaCacheKey {
         private Schema schema;
         private Set<String> fields;
-        private Set<String> edeks;
+        private Map<String, String> edeks;
 
         public SchemaCacheKey(Schema schema,
                               Set<String> fields,
-                              Set<String> edeks) {
+                              Map<String, String> edeks) {
             this.schema = schema;
             this.fields = fields;
             this.edeks = edeks;
@@ -172,7 +173,7 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
     @Override
     public Map<String, byte[]> getAllEDEKs() {
         Map<String, byte[]> fields = new HashMap<>();
-        if (inputEncrypted == null || inputEncrypted.isEmpty()) {
+        if (edeks == null || edeks.isEmpty()) {
             return fields;
         }
         for (Map.Entry<String, String> entry : edeks.entrySet()) {
@@ -261,7 +262,7 @@ public class AvroDataAccessor extends AbstractAvroDataAccessor {
             SchemaCacheKey key = new SchemaCacheKey(
                     mutableSchema.getInitialSchema(),
                     outputEncrypted.keySet(),
-                    edeks.keySet());
+                    edeks);
             if (schemasCache.containsKey(key)) {
                 value = schemasCache.get(key);
             } else {
