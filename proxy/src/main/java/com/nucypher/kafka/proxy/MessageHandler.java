@@ -1,18 +1,16 @@
 package com.nucypher.kafka.proxy;
 
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.network.NetworkSend;
-import org.apache.kafka.common.protocol.types.Struct;
-import org.apache.kafka.common.record.CompressionType;
-import org.apache.kafka.common.record.LogEntry;
+import org.apache.kafka.common.network.Send;
 import org.apache.kafka.common.record.MemoryRecords;
+import org.apache.kafka.common.record.MemoryRecordsBuilder;
 import org.apache.kafka.common.record.Record;
+import org.apache.kafka.common.record.RecordBatch;
+import org.apache.kafka.common.record.Records;
 import org.apache.kafka.common.requests.FetchResponse;
 import org.apache.kafka.common.requests.ProduceRequest;
 import org.apache.kafka.common.requests.RequestHeader;
-import org.apache.kafka.common.requests.RequestSend;
 import org.apache.kafka.common.requests.ResponseHeader;
-import org.apache.kafka.common.requests.ResponseSend;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.slf4j.Logger;
@@ -20,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -61,19 +60,17 @@ public class MessageHandler extends Thread implements Closeable {
             while (!isInterrupted()) {
                 RequestOrResponse requestOrResponse = queue.take();
                 try {
-                    NetworkSend send;
+                    Send send;
                     if (requestOrResponse.isRequest) {
-                        send = new RequestSend(requestOrResponse.destination,
+                        send = recreateProduceRequest(requestOrResponse.destination,
                                 requestOrResponse.requestHeader,
-                                recreateProduceRequest(
-                                        requestOrResponse.produceRequest,
-                                        requestOrResponse.serializer));
+                                requestOrResponse.produceRequest,
+                                requestOrResponse.serializer);
                     } else {
-                        send = new ResponseSend(requestOrResponse.destination,
-                                requestOrResponse.responseHeader,
-                                recreateFetchResponse(
-                                        requestOrResponse.fetchResponse,
-                                        requestOrResponse.deserializer));
+                        send = recreateFetchResponse(requestOrResponse.destination,
+                                requestOrResponse.requestHeader,
+                                requestOrResponse.fetchResponse,
+                                requestOrResponse.deserializer);
                     }
                     requestOrResponse.processor.send(send);
                 } catch (Exception e) {
@@ -87,78 +84,93 @@ public class MessageHandler extends Thread implements Closeable {
         }
     }
 
-    private Struct recreateProduceRequest(ProduceRequest produceRequest,
-                                          Serializer<byte[]> serializer) {
-        Map<TopicPartition, ByteBuffer> produceRecordsByPartition = produceRequest.partitionRecords();
-        for (Map.Entry<TopicPartition, ByteBuffer> entry :
+    private Send recreateProduceRequest(String destination,
+                                        RequestHeader header,
+                                        ProduceRequest produceRequest,
+                                        Serializer<byte[]> serializer) {
+        Map<TopicPartition, MemoryRecords> produceRecordsByPartition =
+                produceRequest.partitionRecordsOrFail();
+        for (Map.Entry<TopicPartition, MemoryRecords> entry :
                 produceRecordsByPartition.entrySet()) {
-            MemoryRecords records = MemoryRecords.readableRecords(entry.getValue());
-            if (records.iterator().hasNext()) {
-                ByteBuffer buffer = getByteBuffer(
+            MemoryRecords records = entry.getValue();
+            if (records.records().iterator().hasNext()) {
+                MemoryRecords newRecords = transformRecords(
                         entry.getKey().topic(), records, ENCRYPT_FACTOR, serializer, null);
-                entry.setValue(buffer);
+                entry.setValue(newRecords);
             }
         }
 
-        ProduceRequest newProduceRequest = new ProduceRequest(
-                produceRequest.acks(), produceRequest.timeout(), produceRecordsByPartition);
-        return newProduceRequest.toStruct();
+        ProduceRequest newProduceRequest = new ProduceRequest.Builder(
+                RecordBatch.CURRENT_MAGIC_VALUE,
+                produceRequest.acks(),
+                produceRequest.timeout(),
+                produceRecordsByPartition).build(header.apiVersion());
+        return newProduceRequest.toSend(destination, header);
     }
 
-    private Struct recreateFetchResponse(FetchResponse response,
-                                         Deserializer<byte[]> deserializer) {
-        Map<TopicPartition, FetchResponse.PartitionData> data = response.responseData();
+    private Send recreateFetchResponse(String destination,
+                                       RequestHeader header,
+                                       FetchResponse response,
+                                       Deserializer<byte[]> deserializer) {
+        LinkedHashMap<TopicPartition, FetchResponse.PartitionData> data = response.responseData();
         for (Map.Entry<TopicPartition, FetchResponse.PartitionData> entry : data.entrySet()) {
             FetchResponse.PartitionData partitionData = entry.getValue();
-            MemoryRecords records = MemoryRecords.readableRecords(partitionData.recordSet);
-            if (records.iterator().hasNext()) {
-                ByteBuffer buffer = getByteBuffer(
+            Records records = partitionData.records;
+            if (records.sizeInBytes() > 0) {
+                Records newRecords = transformRecords(
                         entry.getKey().topic(), records, DECRYPT_FACTOR, null, deserializer);
                 entry.setValue(new FetchResponse.PartitionData(
-                        partitionData.errorCode, partitionData.highWatermark, buffer));
+                        partitionData.error,
+                        partitionData.highWatermark,
+                        partitionData.lastStableOffset,
+                        partitionData.logStartOffset,
+                        partitionData.abortedTransactions,
+                        newRecords));
             }
         }
-        response = new FetchResponse(data, response.getThrottleTime());
-        return response.toStruct();
+        response = new FetchResponse(data, response.throttleTimeMs());
+        return response.toSend(destination, header);
     }
 
-    private ByteBuffer getByteBuffer(String topic,
-                                     MemoryRecords records,
-                                     int sizeFactor,
-                                     Serializer<byte[]> serializer,
-                                     Deserializer<byte[]> deserializer) {
+    private MemoryRecords transformRecords(String topic,
+                                           Records records,
+                                           int sizeFactor,
+                                           Serializer<byte[]> serializer,
+                                           Deserializer<byte[]> deserializer) {
         int bufferSize = records.sizeInBytes() * sizeFactor;
-        final ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
-        MemoryRecords memoryRecords = null;
-
-        for (LogEntry logEntry : records) {
-            Record record = logEntry.record();
-            if (memoryRecords == null) {
-                CompressionType compressionType = record.compressionType();
-                memoryRecords = MemoryRecords.emptyRecords(buffer, compressionType);
+        MemoryRecordsBuilder builder = null;
+        for (RecordBatch recordBatch : records.batches()) {
+            if (builder == null) {
+                //assume that all batches has the same compression and others parameters
+                builder = MemoryRecords.builder(
+                        ByteBuffer.allocate(bufferSize),
+                        recordBatch.compressionType(),
+                        recordBatch.timestampType(),
+                        recordBatch.baseOffset());
             }
-
-            ByteBuffer payload = record.value().duplicate();
-            byte[] valueBytes = null;
-            if (payload != null) {
-                valueBytes = new byte[payload.remaining()];
-                payload.get(valueBytes);
+            for (Record record : recordBatch) {
+                ByteBuffer payload = record.value().duplicate();
+                byte[] valueBytes = null;
+                if (payload != null) {
+                    valueBytes = new byte[payload.remaining()];
+                    payload.get(valueBytes);
+                }
+                if (deserializer != null) {
+                    valueBytes = deserializer.deserialize(topic, valueBytes); //TODO if error need send response
+                }
+                if (serializer != null) {
+                    valueBytes = serializer.serialize(topic, valueBytes); //TODO if error need send response
+                }
+                ByteBuffer key = record.key();
+                builder.appendWithOffset(
+                        record.offset(),
+                        record.timestamp(),
+                        key != null ? key.array() : null,
+                        valueBytes);
             }
-            if (deserializer != null) {
-                valueBytes = deserializer.deserialize(topic, valueBytes); //TODO if error need send response
-            }
-            if (serializer != null) {
-                valueBytes = serializer.serialize(topic, valueBytes); //TODO if error need send response
-            }
-            ByteBuffer key = record.key();
-            memoryRecords.append(
-                    logEntry.offset(),
-                    record.timestamp(),
-                    key != null ? key.array() : null,
-                    valueBytes);
         }
-        memoryRecords.close();
-        return memoryRecords.buffer();
+        builder.closeForRecordAppends();
+        return builder.build();
     }
 
     @Override
@@ -177,7 +189,7 @@ public class MessageHandler extends Thread implements Closeable {
         private final String destination;
         private final RequestHeader requestHeader;
         private final ProduceRequest produceRequest;
-        private final ResponseHeader responseHeader;
+//        private final ResponseHeader responseHeader;
         private final FetchResponse fetchResponse;
         private final boolean isRequest;
         private final Serializer<byte[]> serializer;
@@ -194,23 +206,24 @@ public class MessageHandler extends Thread implements Closeable {
             this.produceRequest = produceRequest;
             this.serializer = serializer;
             isRequest = true;
-            responseHeader = null;
+//            responseHeader = null;
             fetchResponse = null;
             deserializer = null;
         }
 
         RequestOrResponse(Processor processor,
                           String destination,
-                          ResponseHeader responseHeader,
+                          RequestHeader requestHeader,
+//                          ResponseHeader responseHeader,
                           FetchResponse fetchResponse,
                           Deserializer<byte[]> deserializer) {
             this.processor = processor;
             this.destination = destination;
-            this.responseHeader = responseHeader;
+//            this.responseHeader = responseHeader;
             this.fetchResponse = fetchResponse;
             this.deserializer = deserializer;
+            this.requestHeader = requestHeader;
             isRequest = false;
-            requestHeader = null;
             produceRequest = null;
             serializer = null;
         }

@@ -2,7 +2,10 @@ package com.nucypher.kafka.clients
 
 import com.nucypher.crypto.EncryptionAlgorithm
 import com.nucypher.kafka.TestUtils
+import com.nucypher.kafka.clients.decrypt.AesMessageDeserializer
+import com.nucypher.kafka.clients.decrypt.AesMessageDeserializerConfig
 import com.nucypher.kafka.clients.decrypt.AesStructuredMessageDeserializer
+import com.nucypher.kafka.clients.encrypt.AesMessageSerializerConfig
 import com.nucypher.kafka.clients.encrypt.AesStructuredMessageSerializer
 import com.nucypher.kafka.clients.granular.StructuredDataAccessorStub
 import com.nucypher.kafka.utils.KeyUtils
@@ -142,5 +145,60 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         then: 'only "a" field should be decrypted'
         decryptedMessage.matches(
                 "\\{\"a\":\"a\", \"b\":\"\\w+\", \"encrypted\":\\{\"b\":\"\\w+\"}}")
+    }
+
+    def 'serializer/deserializer initialization using properties'() {
+        setup: 'initialization'
+
+        String topic = "topic"
+        File file = new File(this.getClass().getClassLoader()
+                .getResource(PEM).getFile())
+
+        AesStructuredMessageSerializer<String> serializer =
+                new AesStructuredMessageSerializer()
+        Map<String, ?> configs = new HashMap<>()
+        configs.put(MessageSerDeConfig.ALGORITHM_CONFIG, ALGORITHM.getCanonicalName())
+        configs.put(AesMessageSerializerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                StringSerializer.class.getCanonicalName())
+        configs.put(AesMessageSerializerConfig.PUBLIC_KEY_CONFIG,
+                file.getAbsolutePath())
+        configs.put(StructuredMessageSerDeConfig.GRANULAR_DATA_ACCESSOR_CONFIG,
+                StructuredDataAccessorStub.class.getCanonicalName())
+        serializer.configure(configs, false)
+
+        AesStructuredMessageDeserializer<String> deserializer =
+                new AesStructuredMessageDeserializer<>()
+        configs = new HashMap<>()
+        configs.put(MessageSerDeConfig.ALGORITHM_CONFIG, ALGORITHM.getCanonicalName())
+            configs.put(AesMessageDeserializerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                StringDeserializer.class.getCanonicalName())
+        configs.put(AesMessageDeserializerConfig.PRIVATE_KEY_CONFIG,
+                file.getAbsolutePath())
+        configs.put(StructuredMessageSerDeConfig.GRANULAR_DATA_ACCESSOR_CONFIG,
+                StructuredDataAccessorStub.class.getCanonicalName())
+        deserializer.configure(configs, false)
+
+        Pattern allPattern = Pattern.compile(encryptedMessageAll, Pattern.DOTALL)
+
+        when: 'encrypt all fields'
+        byte[] bytes = serializer.serialize(topic, message)
+
+        then: '"a" and "b" fields should be encrypted'
+        allPattern.matcher(new String(bytes)).matches()
+
+        when: 'decrypt all fields'
+        String decryptedMessage = deserializer.deserialize(topic, bytes)
+
+        then: '"a" and "b" fields should be decrypted'
+        decryptedMessage == message
+
+        where:
+        message << ["{\"a\":\"a\", \"b\":\"b\"}",
+                    "{\"a\":\"a\", \"b\":\"b\"}\n{\"a\":\"c\", \"b\":\"d\"}"]
+        encryptedMessageAll << [
+                ".+\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}.+a.+b.+",
+                ".+\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}\n" +
+                        "\\{\"a\":\"\\w+\", \"b\":\"\\w+\"}.+a.+b.+"
+        ]
     }
 }

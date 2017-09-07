@@ -3,6 +3,8 @@ package com.nucypher.kafka.proxy;
 import org.apache.commons.io.IOUtils;
 import org.apache.kafka.clients.ClientUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.network.NetworkReceive;
@@ -61,7 +63,8 @@ public class ProxyServer implements Closeable {
                        String clientSaslMechanism,
                        Serializer<byte[]> serializer,
                        Deserializer<byte[]> deserializer,
-                       Map<String, ?> configs) throws IOException {
+                       Map<?, ?> configs) throws IOException {
+        AbstractProxyConfig config = new AbstractProxyConfig(configs);
         configure(localPort,
                 numProcessors,
                 numHandlers,
@@ -71,7 +74,7 @@ public class ProxyServer implements Closeable {
                 clientSaslMechanism,
                 serializer,
                 deserializer,
-                configs);
+                config);
     }
 
     private void configure(int localPort,
@@ -83,7 +86,7 @@ public class ProxyServer implements Closeable {
                            String clientSaslMechanism,
                            Serializer<byte[]> serializer,
                            Deserializer<byte[]> deserializer,
-                           Map<String, ?> configs) throws IOException {
+                           AbstractConfig configs) throws IOException {
         Metrics metrics = new Metrics();
         Time time = new SystemTime();
 
@@ -141,7 +144,7 @@ public class ProxyServer implements Closeable {
                 config.getString(SaslConfigs.SASL_MECHANISM),
                 serializer,
                 deserializer,
-                config.values()
+                config
         );
     }
 

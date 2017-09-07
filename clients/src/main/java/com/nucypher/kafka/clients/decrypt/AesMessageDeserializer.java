@@ -24,7 +24,7 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
     /**
      * Configured flag
      */
-    protected boolean isConfigured;
+    private boolean isConfigured;
     /**
      * Message handler
      */

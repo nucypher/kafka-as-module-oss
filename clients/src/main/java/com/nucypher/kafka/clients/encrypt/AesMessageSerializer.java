@@ -26,7 +26,7 @@ public class AesMessageSerializer<T> implements Serializer<T> {
     /**
      * Configured flag
      */
-    protected boolean isConfigured;
+    private boolean isConfigured;
     /**
      * Message handler
      */
@@ -94,7 +94,7 @@ public class AesMessageSerializer<T> implements Serializer<T> {
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
         if (!isConfigured) {
-            AbstractConfig config = new AesMessageSerializerConfig(configs);
+            AbstractConfig config = getConfig(configs);
 
             String path = config.getString(
                     AesMessageSerializerConfig.PUBLIC_KEY_CONFIG);
@@ -129,6 +129,14 @@ public class AesMessageSerializer<T> implements Serializer<T> {
         }
         serializer.configure(configs, isKey);
         isConfigured = true;
+    }
+
+    /**
+     * @param configs map of parameters
+     * @return {@link AbstractConfig} instance
+     */
+    protected AbstractConfig getConfig(Map<String, ?> configs) {
+        return new AesMessageSerializerConfig(configs);
     }
 
     /**

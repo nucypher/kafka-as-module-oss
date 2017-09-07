@@ -21,7 +21,7 @@ public class TransparentProxyFromInstance {
         JaasUtils.initializeConfiguration("jaas_proxy.conf");
         Map<String, Object> configs = new HashMap<>();
         configs.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG,
-                SecurityProtocol.SASL_PLAINTEXT);
+                SecurityProtocol.SASL_PLAINTEXT.name);
         configs.put(SaslConfigs.SASL_ENABLED_MECHANISMS,
                 Collections.singletonList("PLAIN"));
         final ProxyServer server = new ProxyServer(

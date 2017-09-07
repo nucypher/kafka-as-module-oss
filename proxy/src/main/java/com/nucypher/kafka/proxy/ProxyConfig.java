@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * Proxy configuration
  */
-public class ProxyConfig extends AbstractConfig {
+public class ProxyConfig extends AbstractProxyConfig {
 
     private static final ConfigDef CONFIG;
 
@@ -76,7 +76,7 @@ public class ProxyConfig extends AbstractConfig {
     public static final int DEFAULT_PROXY_NUM_HANDLERS = 1;
 
     static {
-        CONFIG = new ConfigDef()
+        CONFIG = getConfigDef()
                 .define(BOOTSTRAP_SERVERS_CONFIG,
                         ConfigDef.Type.LIST,
                         ConfigDef.Importance.HIGH,
@@ -96,24 +96,6 @@ public class ProxyConfig extends AbstractConfig {
                         9 * 60 * 1000,
                         ConfigDef.Importance.MEDIUM,
                         CommonClientConfigs.CONNECTIONS_MAX_IDLE_MS_DOC)
-                // security support
-                .define(SASL_ENABLED_MECHANISMS,
-                        ConfigDef.Type.LIST,
-                        SaslConfigs.DEFAULT_SASL_ENABLED_MECHANISMS,
-                        ConfigDef.Importance.MEDIUM,
-                        SaslConfigs.SASL_ENABLED_MECHANISMS_DOC)
-                .define(SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES,
-                        ConfigDef.Type.LIST,
-                        SaslConfigs.DEFAULT_SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES,
-                        ConfigDef.Importance.MEDIUM,
-                        SaslConfigs.SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES_DOC)
-                .define(SECURITY_PROTOCOL_CONFIG,
-                        ConfigDef.Type.STRING,
-                        CommonClientConfigs.DEFAULT_SECURITY_PROTOCOL,
-                        ConfigDef.Importance.MEDIUM,
-                        CommonClientConfigs.SECURITY_PROTOCOL_DOC)
-                .withClientSslSupport()
-                .withClientSaslSupport()
                 // proxy configuration
                 .define(PROXY_PORT_CONFIG,
                         ConfigDef.Type.INT,

@@ -30,7 +30,7 @@ public class AesMessageDeserializerConfig extends MessageSerDeConfig {
     private static final ConfigDef CONFIG;
 
     static {
-        CONFIG = baseConfigDef()
+        CONFIG = MessageSerDeConfig.baseConfigDef()
                 .define(PRIVATE_KEY_CONFIG,
                         ConfigDef.Type.STRING,
                         ConfigDef.Importance.HIGH,

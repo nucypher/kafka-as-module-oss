@@ -47,5 +47,11 @@ project(':kafka:connect:json').projectDir = new File('kafka/connect/json')
 include 'kafka:connect:runtime'
 project(':kafka:connect:runtime').projectDir = new File('kafka/connect/runtime')
 
+include 'kafka:connect:transforms'
+project(':kafka:connect:transforms').projectDir = new File('kafka/connect/transforms')
+
+include 'kafka:jmh-benchmarks'
+project(':kafka:jmh-benchmarks').projectDir = new File('kafka/jmh-benchmarks')
+
 include 'kafka:log4j-appender'
 project(':kafka:log4j-appender').projectDir = new File('kafka/log4j-appender')

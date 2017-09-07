@@ -34,7 +34,7 @@ public class AesMessageSerializerConfig extends MessageSerDeConfig {
     private static final ConfigDef CONFIG;
 
     static {
-        CONFIG = baseConfigDef()
+        CONFIG = MessageSerDeConfig.baseConfigDef()
                 .define(PUBLIC_KEY_CONFIG,
                         ConfigDef.Type.STRING,
                         ConfigDef.Importance.HIGH,
@@ -59,6 +59,10 @@ public class AesMessageSerializerConfig extends MessageSerDeConfig {
                         MAX_USING_DEK_DEFAULT,
                         ConfigDef.Importance.LOW,
                         MAX_USING_DEK_DOC);
+    }
+
+    public static ConfigDef baseConfigDef() {
+        return CONFIG;
     }
 
     public AesMessageSerializerConfig(Map<?, ?> props) {

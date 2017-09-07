@@ -20,12 +20,14 @@ public class AesStructuredMessageDeserializer<T> extends AesMessageDeserializer<
 
     private StructuredDataAccessor accessor;
     private StructuredMessageHandler structuredMessageHandler;
+    private boolean isConfigured;
 
     /**
      * Constructor used by Kafka consumer
      */
     public AesStructuredMessageDeserializer() {
         super();
+        isConfigured = false;
     }
 
     /**
@@ -46,6 +48,7 @@ public class AesStructuredMessageDeserializer<T> extends AesMessageDeserializer<
             throw new CommonException(e);
         }
         structuredMessageHandler = new StructuredMessageHandler(messageHandler);
+        isConfigured = true;
     }
 
     /**
@@ -64,15 +67,16 @@ public class AesStructuredMessageDeserializer<T> extends AesMessageDeserializer<
 
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
+        super.configure(configs, isKey);
         if (!isConfigured) {
             AbstractConfig config = new AesStructuredMessageDeserializerConfig(configs);
             accessor = config.getConfiguredInstance(
                     AesStructuredMessageDeserializerConfig.GRANULAR_DATA_ACCESSOR_CONFIG,
                     StructuredDataAccessor.class);
             structuredMessageHandler = new StructuredMessageHandler(messageHandler);
+            isConfigured = true;
         }
         accessor.configure(configs, isKey);
-        super.configure(configs, isKey);
     }
 
     @Override

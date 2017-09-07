@@ -4,17 +4,17 @@ import kafka.api.FetchRequest;
 import kafka.network.RequestChannel;
 import org.apache.commons.io.IOUtils;
 import org.apache.kafka.common.Node;
+import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.network.ChannelBuilder;
 import org.apache.kafka.common.network.ChannelBuilders;
 import org.apache.kafka.common.network.KafkaChannel;
-import org.apache.kafka.common.network.LoginType;
-import org.apache.kafka.common.network.Mode;
+import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.network.NetworkReceive;
 import org.apache.kafka.common.network.NetworkSend;
 import org.apache.kafka.common.network.Selector;
+import org.apache.kafka.common.network.Send;
 import org.apache.kafka.common.protocol.ApiKeys;
-import org.apache.kafka.common.protocol.ProtoUtils;
 import org.apache.kafka.common.protocol.SecurityProtocol;
 import org.apache.kafka.common.protocol.types.Struct;
 import org.apache.kafka.common.requests.FetchResponse;
@@ -22,8 +22,11 @@ import org.apache.kafka.common.requests.MetadataResponse;
 import org.apache.kafka.common.requests.ProduceRequest;
 import org.apache.kafka.common.requests.RequestHeader;
 import org.apache.kafka.common.requests.ResponseHeader;
-import org.apache.kafka.common.requests.ResponseSend;
+import org.apache.kafka.common.security.JaasContext;
 import org.apache.kafka.common.security.auth.KafkaPrincipal;
+import org.apache.kafka.common.security.authenticator.CredentialCache;
+import org.apache.kafka.common.security.scram.ScramCredentialUtils;
+import org.apache.kafka.common.security.scram.ScramMechanism;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,9 +58,9 @@ public class Processor extends Thread implements Closeable {
 
     private final int id;
     private final Selector selector;
-    private final Map<String, Queue<NetworkSend>> inFlightSends = new HashMap<>();
+    private final Map<String, Queue<Send>> inFlightSends = new HashMap<>();
     //    private final Map<String, Queue<NetworkSend>> updatedSends = new HashMap<>();
-    private final ConcurrentHashMap<String, Queue<NetworkSend>> updatedSends =
+    private final ConcurrentHashMap<String, Queue<Send>> updatedSends =
             new ConcurrentHashMap<>();
     private final Queue<SocketChannel> newConnections = new ConcurrentLinkedQueue<>();
     private final Map<String, Queue<ClientRequest>> requests = new HashMap<>();
@@ -93,7 +96,7 @@ public class Processor extends Thread implements Closeable {
                      int localPort,
                      InetSocketAddress broker,
                      MessageHandlerRouter router,
-                     Map<String, ?> channelConfigs) throws UnknownHostException {
+                     AbstractConfig channelConfigs) throws UnknownHostException {
         this.id = id;
         this.securityProtocol = securityProtocol;
         this.time = time;
@@ -101,20 +104,37 @@ public class Processor extends Thread implements Closeable {
         this.broker = broker;
         this.thisNode = new Node(0, localHost, localPort);
         setName("processor-" + id);
-        ChannelBuilder clientChannelBuilder = ChannelBuilders.create(
+        CredentialCache credentialCache = new CredentialCache();
+        if (securityProtocol == SecurityProtocol.SASL_PLAINTEXT ||
+                securityProtocol == SecurityProtocol.SASL_SSL) {
+            ScramCredentialUtils.createCache(credentialCache, ScramMechanism.mechanismNames());
+        }
+        ChannelBuilder clientChannelBuilder = ChannelBuilders.serverChannelBuilder(
+                ListenerName.forSecurityProtocol(securityProtocol),
                 securityProtocol,
-                Mode.SERVER,
-                LoginType.SERVER,
                 channelConfigs,
-                null,
-                true);
-        ChannelBuilder brokerChannelBuilder = ChannelBuilders.create(
+                credentialCache);
+//        ChannelBuilder clientChannelBuilder = ChannelBuilders.create(
+//                securityProtocol,
+//                Mode.SERVER,
+//                JaasContext.Type.SERVER,
+//                channelConfigs,
+//                null,
+//                true);
+        ChannelBuilder brokerChannelBuilder = ChannelBuilders.clientChannelBuilder(
                 securityProtocol,
-                Mode.CLIENT,
-                LoginType.SERVER,
+                JaasContext.Type.SERVER,
                 channelConfigs,
+                ListenerName.forSecurityProtocol(securityProtocol),
                 clientSaslMechanism,
                 true);
+//        ChannelBuilder brokerChannelBuilder = ChannelBuilders.create(
+//                securityProtocol,
+//                Mode.CLIENT,
+//                JaasContext.Type.SERVER,
+//                channelConfigs,
+//                clientSaslMechanism,
+//                true);
         Map<String, String> metricTags = new HashMap<>(1);
         metricTags.put("networkProcessor", String.valueOf(id));
         this.selector = new Selector(
@@ -179,19 +199,19 @@ public class Processor extends Thread implements Closeable {
         }
     }
 
-    private void processInFlightSends(Map<String, Queue<NetworkSend>> sends) {
-        Iterator<Map.Entry<String, Queue<NetworkSend>>> iterator =
+    private void processInFlightSends(Map<String, Queue<Send>> sends) {
+        Iterator<Map.Entry<String, Queue<Send>>> iterator =
                 sends.entrySet().iterator();
         while (iterator.hasNext()) {
-            Map.Entry<String, Queue<NetworkSend>> entry = iterator.next();
+            Map.Entry<String, Queue<Send>> entry = iterator.next();
             if (!processInFlightSends(entry.getKey(), entry.getValue())) {
                 iterator.remove();
             }
         }
     }
 
-    private boolean processInFlightSends(String destination, Queue<NetworkSend> sends) {
-        NetworkSend send = sends.peek();
+    private boolean processInFlightSends(String destination, Queue<Send> sends) {
+        Send send = sends.peek();
         if (send == null) {
             return true;
         }
@@ -226,7 +246,7 @@ public class Processor extends Thread implements Closeable {
                 requests.remove(destination);
                 continue;
             }
-            NetworkSend send;
+            Send send;
             if (Utils.isToBroker(destination)) {
                 send = updateRequest(
                         destination,
@@ -240,7 +260,7 @@ public class Processor extends Thread implements Closeable {
             }
 
             if (!channel.ready() || !sendSynchronized(send, channel)) {
-                Queue<NetworkSend> queue = inFlightSends.get(destination);
+                Queue<Send> queue = inFlightSends.get(destination);
                 if (queue == null) {
                     queue = new LinkedList<>();
                     inFlightSends.put(destination, queue);
@@ -250,7 +270,7 @@ public class Processor extends Thread implements Closeable {
         }
     }
 
-    private NetworkSend updateRequest(
+    private Send updateRequest(
             String destination,
             KafkaChannel clientChannel,
             NetworkReceive receive) throws IOException {
@@ -265,6 +285,7 @@ public class Processor extends Thread implements Closeable {
                 session,
                 copy,
                 time.milliseconds(),
+                null,
                 securityProtocol);
         short apiKey = request.requestId();
         RequestHeader header = request.header();
@@ -279,14 +300,14 @@ public class Processor extends Thread implements Closeable {
         requests.get(receive.source())
                 .add(new ClientRequest(request.connectionId(), header));
         if (ApiKeys.forId(apiKey) == ApiKeys.PRODUCE) {
-            ProduceRequest produceRequest = (ProduceRequest) request.body();
+            ProduceRequest produceRequest = (ProduceRequest) request.bodyAndSize().request;
             router.enqueueProduceRequest(this, destination, request.header(), produceRequest);
             return null;
         }
         return new NetworkSend(destination, receive.payload());
     }
 
-    private NetworkSend updateReceive(
+    private Send updateReceive(
             String destination, NetworkReceive receive) throws IOException {
         ByteBuffer copy = receive.payload().duplicate();
         ResponseHeader responseHeader = ResponseHeader.parse(copy);
@@ -295,26 +316,28 @@ public class Processor extends Thread implements Closeable {
         String connectionId = request.connectionId;
         short apiKey = header.apiKey();
         short apiVersion = header.apiVersion();
-        Struct responseBody = ProtoUtils.responseSchema(apiKey, apiVersion).read(copy);
+        ApiKeys apiKeys = ApiKeys.forId(apiKey);
+        Struct responseBody = apiKeys.responseSchema(apiVersion).read(copy);
         correlate(header, responseHeader);
-        NetworkSend send;
-        if (ApiKeys.forId(apiKey) == ApiKeys.METADATA) {
+        Send send;
+        if (apiKeys == ApiKeys.METADATA) {
             MetadataResponse response = new MetadataResponse(responseBody);
             response = new MetadataResponse(
+                    response.throttleTimeMs(),
                     Collections.singletonList(thisNode),
                     response.clusterId(),
                     response.controller().id(),
-                    new ArrayList<>(response.topicMetadata()),
-                    apiVersion
-            );
-            send = new ResponseSend(connectionId, responseHeader, response);
+                    new ArrayList<>(response.topicMetadata()));
+//            send = new RequestOrResponseSend(connectionId, responseHeader, response);
+//            send = new TopicMetadataResponse()
+            send = response.toSend(connectionId, header);
         } /*else if (ApiKeys.forId(apiKey) == ApiKeys.GROUP_COORDINATOR) {
             GroupCoordinatorResponse response = new GroupCoordinatorResponse(responseBody);
             response = new GroupCoordinatorResponse(response.errorCode(), thisNode);
             send = new ResponseSend(connectionId, responseHeader, response);
-        }*/ else if (ApiKeys.forId(apiKey) == ApiKeys.FETCH) {
+        }*/ else if (apiKeys == ApiKeys.FETCH) {
             FetchResponse response = new FetchResponse(responseBody);
-            router.enqueueFetchResponse(this, destination, responseHeader, response);
+            router.enqueueFetchResponse(this, destination, header, response);
             send = null;
         } else {
             send = new NetworkSend(destination, receive.payload());
@@ -350,9 +373,9 @@ public class Processor extends Thread implements Closeable {
     }
 
     /**
-     * @param send {@link NetworkSend}
+     * @param send {@link Send}
      */
-    public void send(NetworkSend send) {
+    public void send(Send send) {
         if (send == null) {
             return;
         }
@@ -363,8 +386,8 @@ public class Processor extends Thread implements Closeable {
         }
         if (!channel.ready() || !sendSynchronized(send, channel)) {
             //one channel - one message handler
-            Queue<NetworkSend> queue = new LinkedList<>();
-            Queue<NetworkSend> anotherQueue = updatedSends.putIfAbsent(destination, queue);
+            Queue<Send> queue = new LinkedList<>();
+            Queue<Send> anotherQueue = updatedSends.putIfAbsent(destination, queue);
             if (anotherQueue != null) {
                 queue = anotherQueue;
             }
@@ -372,7 +395,7 @@ public class Processor extends Thread implements Closeable {
         }
     }
 
-    private boolean sendSynchronized(NetworkSend send, KafkaChannel channel) {
+    private boolean sendSynchronized(Send send, KafkaChannel channel) {
         synchronized (channel) {
             if (!channel.hasSend()) {
                 selector.send(send);

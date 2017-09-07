@@ -27,6 +27,7 @@ import java.util.Set;
  */
 public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
 
+    private boolean isConfigured;
     private StructuredDataAccessor accessor;
     private StructuredMessageHandler structuredMessageHandler;
     private Set<String> fields;
@@ -36,6 +37,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      */
     public AesStructuredMessageSerializer() {
         super();
+        isConfigured = false;
     }
 
     /**
@@ -99,6 +101,7 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
         }
         structuredMessageHandler = new StructuredMessageHandler(messageHandler);
         this.fields = fields;
+        isConfigured = true;
     }
 
     /**
@@ -162,20 +165,21 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
 
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
+        super.configure(configs, isKey);
         if (!isConfigured) {
-            AbstractConfig config = new AesStructuredMessageSerializerConfig(configs);
+            AbstractConfig config = getConfig(configs);
             accessor = config.getConfiguredInstance(
                     AesStructuredMessageSerializerConfig.GRANULAR_DATA_ACCESSOR_CONFIG,
                     StructuredDataAccessor.class);
             structuredMessageHandler = new StructuredMessageHandler(messageHandler);
             List<String> fieldsList = config.getList(
                     AesStructuredMessageSerializerConfig.FIELDS_LIST_CONFIG);
-            if (fieldsList != null) {
+            if (fieldsList != null && !fieldsList.isEmpty()) {
                 fields = new HashSet<>(fieldsList);
             }
+            isConfigured = true;
         }
         accessor.configure(configs, isKey);
-        super.configure(configs, isKey);
     }
 
     @Override
@@ -187,6 +191,11 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
         }
 
         return structuredMessageHandler.encrypt(topic, serialized, accessor, fields);
+    }
+
+    @Override
+    protected AbstractConfig getConfig(Map<String, ?> configs) {
+        return new AesStructuredMessageSerializerConfig(configs);
     }
 
     @Override
