@@ -61,20 +61,17 @@ public class MessageHandlerRouter {
      * @param processor      {@link Processor} that has received a response
      * @param destination    destination id
      * @param requestHeader  request header
-//     * @param responseHeader response header
      * @param fetchResponse  response
      */
     public void enqueueFetchResponse(Processor processor,
                                      String destination,
                                      RequestHeader requestHeader,
-//                                     ResponseHeader responseHeader,
                                      FetchResponse fetchResponse) {
         MessageHandler currentHandler = getMessageHandler(destination);
         MessageHandler.RequestOrResponse response = new MessageHandler.RequestOrResponse(
                 processor,
                 destination,
                 requestHeader,
-//                responseHeader,
                 fetchResponse,
                 deserializer);
         currentHandler.enqueue(response);

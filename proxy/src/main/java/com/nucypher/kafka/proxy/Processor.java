@@ -1,6 +1,5 @@
 package com.nucypher.kafka.proxy;
 
-import kafka.api.FetchRequest;
 import kafka.network.RequestChannel;
 import org.apache.commons.io.IOUtils;
 import org.apache.kafka.common.Node;
@@ -48,6 +47,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Processor thread that have its own selector and read requests from sockets
@@ -59,7 +59,7 @@ public class Processor extends Thread implements Closeable {
     private final int id;
     private final Selector selector;
     private final Map<String, Queue<Send>> inFlightSends = new HashMap<>();
-    //    private final Map<String, Queue<NetworkSend>> updatedSends = new HashMap<>();
+    //TODO change Queue to BlockingQueue
     private final ConcurrentHashMap<String, Queue<Send>> updatedSends =
             new ConcurrentHashMap<>();
     private final Queue<SocketChannel> newConnections = new ConcurrentLinkedQueue<>();
@@ -114,13 +114,7 @@ public class Processor extends Thread implements Closeable {
                 securityProtocol,
                 channelConfigs,
                 credentialCache);
-//        ChannelBuilder clientChannelBuilder = ChannelBuilders.create(
-//                securityProtocol,
-//                Mode.SERVER,
-//                JaasContext.Type.SERVER,
-//                channelConfigs,
-//                null,
-//                true);
+        //TODO get SASL_CONFIGS string from the client connection
         ChannelBuilder brokerChannelBuilder = ChannelBuilders.clientChannelBuilder(
                 securityProtocol,
                 JaasContext.Type.SERVER,
@@ -128,13 +122,6 @@ public class Processor extends Thread implements Closeable {
                 ListenerName.forSecurityProtocol(securityProtocol),
                 clientSaslMechanism,
                 true);
-//        ChannelBuilder brokerChannelBuilder = ChannelBuilders.create(
-//                securityProtocol,
-//                Mode.CLIENT,
-//                JaasContext.Type.SERVER,
-//                channelConfigs,
-//                clientSaslMechanism,
-//                true);
         Map<String, String> metricTags = new HashMap<>(1);
         metricTags.put("networkProcessor", String.valueOf(id));
         this.selector = new Selector(
@@ -167,8 +154,8 @@ public class Processor extends Thread implements Closeable {
                 // setup any new connections that have been queued up
                 configureNewConnections();
                 selector.poll(300);
-                processInFlightSends(updatedSends);
-                processInFlightSends(inFlightSends);
+                processInFlightSends(updatedSends, false);
+                processInFlightSends(inFlightSends, true);
                 processCompletedReceives();
             }
         } catch (Exception e) {
@@ -199,12 +186,14 @@ public class Processor extends Thread implements Closeable {
         }
     }
 
-    private void processInFlightSends(Map<String, Queue<Send>> sends) {
+    private void processInFlightSends(Map<String, Queue<Send>> sends,
+                                      boolean removeEmpty) {
         Iterator<Map.Entry<String, Queue<Send>>> iterator =
                 sends.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Queue<Send>> entry = iterator.next();
-            if (!processInFlightSends(entry.getKey(), entry.getValue())) {
+            if (!processInFlightSends(entry.getKey(), entry.getValue()) && removeEmpty) {
+                //TODO extract to method and add threadsafe checking for emptiness for updatedSends
                 iterator.remove();
             }
         }
@@ -289,16 +278,13 @@ public class Processor extends Thread implements Closeable {
                 securityProtocol);
         short apiKey = request.requestId();
         RequestHeader header = request.header();
-        if (header == null) {
-            FetchRequest fetchRequest = (FetchRequest) request.requestObj();
-            header = new RequestHeader(apiKey, fetchRequest.versionId(),
-                    fetchRequest.clientId(), fetchRequest.correlationId());
+        String source = receive.source();
+        Queue<ClientRequest> queue = requests.get(source);
+        if (queue == null) {
+            queue = new LinkedList<>();
+            requests.put(source, queue);
         }
-        if (requests.get(receive.source()) == null) {
-            requests.put(receive.source(), new LinkedList<ClientRequest>());
-        }
-        requests.get(receive.source())
-                .add(new ClientRequest(request.connectionId(), header));
+        queue.add(new ClientRequest(request.connectionId(), header));
         if (ApiKeys.forId(apiKey) == ApiKeys.PRODUCE) {
             ProduceRequest produceRequest = (ProduceRequest) request.bodyAndSize().request;
             router.enqueueProduceRequest(this, destination, request.header(), produceRequest);
@@ -384,13 +370,15 @@ public class Processor extends Thread implements Closeable {
         if (channel == null) {
             return;
         }
-        if (!channel.ready() || !sendSynchronized(send, channel)) {
-            //one channel - one message handler
-            Queue<Send> queue = new LinkedList<>();
-            Queue<Send> anotherQueue = updatedSends.putIfAbsent(destination, queue);
-            if (anotherQueue != null) {
-                queue = anotherQueue;
-            }
+        Queue<Send> queue = new LinkedBlockingQueue<>();
+        //one channel - one message handler
+        Queue<Send> anotherQueue = updatedSends.putIfAbsent(destination, queue);
+        if (anotherQueue != null) {
+            queue = anotherQueue;
+        }
+        if (!queue.isEmpty() ||
+                !channel.ready() ||
+                !sendSynchronized(send, channel)) {
             queue.add(send);
         }
     }
@@ -424,4 +412,5 @@ public class Processor extends Thread implements Closeable {
         }
 
     }
+
 }

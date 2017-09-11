@@ -101,6 +101,7 @@ public class ProxyServer implements Closeable {
         acceptor = new Acceptor(LOCALHOST, localPort, processors);
         this.port = acceptor.getPort();
 
+        //TODO change to ThreadPool with thread auto restart
         for (int i = 0; i < numProcessors; i++) {
             processors[i] = new Processor(
                     i,
