@@ -1,5 +1,8 @@
 package com.nucypher.kafka.proxy;
 
+import com.nucypher.kafka.errors.CommonException;
+
+import java.lang.reflect.Field;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -48,4 +51,22 @@ public class Utils {
         return destination.endsWith("-broker");
     }
 
+    /**
+     * Get field value
+     *
+     * @param object    object
+     * @param fieldName field name
+     * @return value
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T getField(Object object, String fieldName) {
+        Field hostNameField;
+        try {
+            hostNameField = object.getClass().getDeclaredField(fieldName);
+            hostNameField.setAccessible(true);
+            return (T) hostNameField.get(object);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new CommonException(e);
+        }
+    }
 }

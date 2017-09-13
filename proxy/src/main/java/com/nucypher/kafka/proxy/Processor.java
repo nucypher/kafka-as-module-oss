@@ -5,10 +5,8 @@ import org.apache.commons.io.IOUtils;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.metrics.Metrics;
-import org.apache.kafka.common.network.ChannelBuilder;
-import org.apache.kafka.common.network.ChannelBuilders;
+import org.apache.kafka.common.network.ChannelState;
 import org.apache.kafka.common.network.KafkaChannel;
-import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.network.NetworkReceive;
 import org.apache.kafka.common.network.NetworkSend;
 import org.apache.kafka.common.network.Selector;
@@ -21,11 +19,7 @@ import org.apache.kafka.common.requests.MetadataResponse;
 import org.apache.kafka.common.requests.ProduceRequest;
 import org.apache.kafka.common.requests.RequestHeader;
 import org.apache.kafka.common.requests.ResponseHeader;
-import org.apache.kafka.common.security.JaasContext;
 import org.apache.kafka.common.security.auth.KafkaPrincipal;
-import org.apache.kafka.common.security.authenticator.CredentialCache;
-import org.apache.kafka.common.security.scram.ScramCredentialUtils;
-import org.apache.kafka.common.security.scram.ScramMechanism;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,11 +65,11 @@ public class Processor extends Thread implements Closeable {
     private final InetSocketAddress broker;
     private boolean isStopped;
     private final MessageHandlerRouter router;
+    private final ClientBrokerChannelBuilder channelBuilder;
 
     /**
      * @param id                  processor id
      * @param securityProtocol    security protocol
-     * @param clientSaslMechanism client SASL mechanism
      * @param maxRequestSize      max request size
      * @param connectionMaxIdleMS connection max idle in milliseconds
      * @param metrics             metrics
@@ -87,7 +81,6 @@ public class Processor extends Thread implements Closeable {
      */
     public Processor(int id,
                      SecurityProtocol securityProtocol,
-                     String clientSaslMechanism,
                      int maxRequestSize,
                      long connectionMaxIdleMS,
                      Metrics metrics,
@@ -104,24 +97,7 @@ public class Processor extends Thread implements Closeable {
         this.broker = broker;
         this.thisNode = new Node(0, localHost, localPort);
         setName("processor-" + id);
-        CredentialCache credentialCache = new CredentialCache();
-        if (securityProtocol == SecurityProtocol.SASL_PLAINTEXT ||
-                securityProtocol == SecurityProtocol.SASL_SSL) {
-            ScramCredentialUtils.createCache(credentialCache, ScramMechanism.mechanismNames());
-        }
-        ChannelBuilder clientChannelBuilder = ChannelBuilders.serverChannelBuilder(
-                ListenerName.forSecurityProtocol(securityProtocol),
-                securityProtocol,
-                channelConfigs,
-                credentialCache);
-        //TODO get SASL_CONFIGS string from the client connection
-        ChannelBuilder brokerChannelBuilder = ChannelBuilders.clientChannelBuilder(
-                securityProtocol,
-                JaasContext.Type.SERVER,
-                channelConfigs,
-                ListenerName.forSecurityProtocol(securityProtocol),
-                clientSaslMechanism,
-                true);
+        channelBuilder = new ClientBrokerChannelBuilder(securityProtocol, channelConfigs);
         Map<String, String> metricTags = new HashMap<>(1);
         metricTags.put("networkProcessor", String.valueOf(id));
         this.selector = new Selector(
@@ -132,7 +108,7 @@ public class Processor extends Thread implements Closeable {
                 "proxy",
                 metricTags,
                 false,
-                new ClientBrokerChannelBuilder(clientChannelBuilder, brokerChannelBuilder));
+                channelBuilder);
     }
 
     /**
@@ -154,6 +130,7 @@ public class Processor extends Thread implements Closeable {
                 // setup any new connections that have been queued up
                 configureNewConnections();
                 selector.poll(300);
+                handleDisconnections();
                 processInFlightSends(updatedSends, false);
                 processInFlightSends(inFlightSends, true);
                 processCompletedReceives();
@@ -229,6 +206,7 @@ public class Processor extends Thread implements Closeable {
             String destination = Utils.getDestination(receive.source());
             KafkaChannel channel = selector.channel(destination);
             if (channel == null && Utils.isToBroker(destination)) {
+                channelBuilder.buildBrokerChannelBuilder(destination, selector.channel(receive.source()));
                 selector.connect(destination, broker, -1, -1);
                 channel = selector.channel(destination);
             } else if (channel == null) {
@@ -339,6 +317,49 @@ public class Processor extends Thread implements Closeable {
                             responseHeader.correlationId(),
                             requestHeader.correlationId(),
                             requestHeader));
+    }
+
+    /**
+     * Handle any disconnected connections
+     */
+    private void handleDisconnections() {
+        for (Map.Entry<String, ChannelState> entry : this.selector.disconnected().entrySet()) {
+            String node = entry.getKey();
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Node {} disconnected.", node);
+            }
+            processDisconnection(node, entry.getValue());
+        }
+    }
+
+    /**
+     * Post process disconnection of a node
+     *
+     * @param nodeId Id of the node to be disconnected
+     */
+    private void processDisconnection(String nodeId, ChannelState disconnectState) {
+        String id = Utils.getDestination(nodeId);
+        KafkaChannel channel = selector.channel(id);
+        if (channel == null || !channel.isConnected()) {
+            return;
+        }
+        if (Utils.isToBroker(nodeId)) {
+            switch (disconnectState) {
+                case AUTHENTICATE:
+                    LOGGER.warn("Connection to node {} terminated during authentication. This may indicate " +
+                            "that authentication failed due to invalid credentials.", nodeId);
+                    break;
+                case NOT_CONNECTED:
+                    LOGGER.warn("Connection to node {} could not be established. Broker may not be available.",
+                            nodeId);
+                    break;
+                default:
+                    break; // Disconnections in other states are logged at debug level in Selector
+            }
+            //TODO send error to client
+        }
+        channel.disconnect();
+        selector.close(id);
     }
 
     @Override

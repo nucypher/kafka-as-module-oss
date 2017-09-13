@@ -4,8 +4,6 @@ import org.apache.commons.io.IOUtils;
 import org.apache.kafka.clients.ClientUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.common.config.AbstractConfig;
-import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.network.NetworkReceive;
 import org.apache.kafka.common.protocol.SecurityProtocol;
@@ -48,7 +46,6 @@ public class ProxyServer implements Closeable {
      * @param brokerHost          broker host
      * @param brokerPort          broker port
      * @param securityProtocol    security protocol
-     * @param clientSaslMechanism client SASL mechanism
      * @param serializer          serializer
      * @param deserializer        deserializer
      * @param configs             configuration
@@ -60,7 +57,6 @@ public class ProxyServer implements Closeable {
                        String brokerHost,
                        int brokerPort,
                        SecurityProtocol securityProtocol,
-                       String clientSaslMechanism,
                        Serializer<byte[]> serializer,
                        Deserializer<byte[]> deserializer,
                        Map<?, ?> configs) throws IOException {
@@ -71,7 +67,6 @@ public class ProxyServer implements Closeable {
                 new InetSocketAddress(brokerHost, brokerPort),
                 DEFAULT_CONNECTION_MAX_IDLE_MS,
                 securityProtocol,
-                clientSaslMechanism,
                 serializer,
                 deserializer,
                 config);
@@ -83,7 +78,6 @@ public class ProxyServer implements Closeable {
                            InetSocketAddress broker,
                            long connectionMaxIdleMS,
                            SecurityProtocol securityProtocol,
-                           String clientSaslMechanism,
                            Serializer<byte[]> serializer,
                            Deserializer<byte[]> deserializer,
                            AbstractConfig configs) throws IOException {
@@ -106,7 +100,6 @@ public class ProxyServer implements Closeable {
             processors[i] = new Processor(
                     i,
                     securityProtocol,
-                    clientSaslMechanism,
                     NetworkReceive.UNLIMITED,
                     connectionMaxIdleMS,
                     metrics,
@@ -142,7 +135,6 @@ public class ProxyServer implements Closeable {
                 address,
                 config.getLong(ProxyConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG),
                 SecurityProtocol.forName(config.getString(ProxyConfig.SECURITY_PROTOCOL_CONFIG)),
-                config.getString(SaslConfigs.SASL_MECHANISM),
                 serializer,
                 deserializer,
                 config

@@ -31,7 +31,6 @@ public class TransparentProxyFromInstance {
                 "localhost",
                 9092,
                 SecurityProtocol.SASL_PLAINTEXT,
-                "PLAIN",
                 new ByteArraySerializer(),
                 new ByteArrayDeserializer(),
                 configs);

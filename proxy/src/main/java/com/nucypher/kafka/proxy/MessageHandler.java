@@ -189,7 +189,6 @@ public class MessageHandler extends Thread implements Closeable {
         private final String destination;
         private final RequestHeader requestHeader;
         private final ProduceRequest produceRequest;
-//        private final ResponseHeader responseHeader;
         private final FetchResponse fetchResponse;
         private final boolean isRequest;
         private final Serializer<byte[]> serializer;
@@ -206,7 +205,6 @@ public class MessageHandler extends Thread implements Closeable {
             this.produceRequest = produceRequest;
             this.serializer = serializer;
             isRequest = true;
-//            responseHeader = null;
             fetchResponse = null;
             deserializer = null;
         }
@@ -214,12 +212,10 @@ public class MessageHandler extends Thread implements Closeable {
         RequestOrResponse(Processor processor,
                           String destination,
                           RequestHeader requestHeader,
-//                          ResponseHeader responseHeader,
                           FetchResponse fetchResponse,
                           Deserializer<byte[]> deserializer) {
             this.processor = processor;
             this.destination = destination;
-//            this.responseHeader = responseHeader;
             this.fetchResponse = fetchResponse;
             this.deserializer = deserializer;
             this.requestHeader = requestHeader;
