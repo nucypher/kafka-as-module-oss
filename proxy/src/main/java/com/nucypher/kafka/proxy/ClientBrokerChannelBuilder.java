@@ -45,10 +45,10 @@ public class ClientBrokerChannelBuilder implements ChannelBuilder {
                                       AbstractConfig channelConfigs) {
         //TODO extract to method?
         CredentialCache credentialCache = new CredentialCache();
-        if (securityProtocol == SecurityProtocol.SASL_PLAINTEXT ||
-                securityProtocol == SecurityProtocol.SASL_SSL) {
-            ScramCredentialUtils.createCache(credentialCache, ScramMechanism.mechanismNames());
-        }
+//        if (securityProtocol == SecurityProtocol.SASL_PLAINTEXT ||
+//                securityProtocol == SecurityProtocol.SASL_SSL) {
+//            ScramCredentialUtils.createCache(credentialCache, ScramMechanism.mechanismNames());
+//        }
         this.clientChannelBuilder = ChannelBuilders.serverChannelBuilder(
                 ListenerName.forSecurityProtocol(securityProtocol),
                 securityProtocol,
@@ -135,7 +135,7 @@ public class ClientBrokerChannelBuilder implements ChannelBuilder {
                 String loginModuleName = PlainLoginModule.class.getName();
                 String username = authenticator.principal().getName();
                 JaasContext jaasContext = Utils.getField(authenticator, "jaasContext");
-                String password = null; //TODO add checking
+                String password = null;
                 for (AppConfigurationEntry entry : jaasContext.configurationEntries()) {
                     if (entry.getLoginModuleName().equals(loginModuleName)) {
                         password = (String) entry.getOptions().get("user_" + username);
@@ -145,8 +145,8 @@ public class ClientBrokerChannelBuilder implements ChannelBuilder {
                 if (password == null) {
                     throw new KafkaException("Undefined password for user " + username);
                 }
-                configuration = loginModuleName + " required username=" +
-                        username + " password=" + password + ";";
+                configuration = String.format("%s required username=\"%s\" password=\"%s\";",
+                        loginModuleName, username, password);
                 break;
 //            case "DIGEST-MD5":
 //                loginModule = TestDigestLoginModule.class.getName();

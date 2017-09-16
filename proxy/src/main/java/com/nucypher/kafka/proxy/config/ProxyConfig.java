@@ -1,9 +1,9 @@
-package com.nucypher.kafka.proxy;
+package com.nucypher.kafka.proxy.config;
 
+import com.nucypher.kafka.proxy.ProxyType;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -75,6 +75,20 @@ public class ProxyConfig extends AbstractProxyConfig {
     public static final String PROXY_NUM_HANDLERS_DOC = "Number of message handlers";
     public static final int DEFAULT_PROXY_NUM_HANDLERS = 1;
 
+    /**
+     * <code>zookeeper.connect</code>
+     */
+    public static final String ZOOKEEPER_CONNECT = "zookeeper.connect";
+    public static final String ZOOKEEPER_CONNECT_DEFAULT = "localhost:2181";
+    public static final String ZOOKEEPER_CONNECT_DOC = "Zookeeper host string";
+
+    /**
+     * <code>proxy.type</code>
+     */
+    public static final String PROXY_TYPE = "proxy.type";
+    public static final String PROXY_TYPE_DEFAULT = ProxyType.CLIENT.toString();
+    public static final String PROXY_TYPE_DOC = "Type of proxy server";
+
     static {
         CONFIG = getConfigDef()
                 .define(BOOTSTRAP_SERVERS_CONFIG,
@@ -111,11 +125,20 @@ public class ProxyConfig extends AbstractProxyConfig {
                         ConfigDef.Type.INT,
                         DEFAULT_PROXY_NUM_HANDLERS,
                         ConfigDef.Importance.HIGH,
-                        PROXY_NUM_HANDLERS_DOC);
-
+                        PROXY_NUM_HANDLERS_DOC)
+                .define(ZOOKEEPER_CONNECT,
+                        ConfigDef.Type.STRING,
+                        ZOOKEEPER_CONNECT_DEFAULT,
+                        ConfigDef.Importance.MEDIUM,
+                        ZOOKEEPER_CONNECT_DOC)
+                .define(PROXY_TYPE,
+                        ConfigDef.Type.STRING,
+                        PROXY_TYPE_DEFAULT,
+                        ConfigDef.Importance.HIGH,
+                        PROXY_TYPE_DOC);
     }
 
-    ProxyConfig(Map<?, ?> props) {
+    public ProxyConfig(Map<?, ?> props) {
         super(CONFIG, props);
     }
 }

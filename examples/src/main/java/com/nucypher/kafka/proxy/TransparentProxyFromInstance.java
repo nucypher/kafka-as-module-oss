@@ -33,6 +33,7 @@ public class TransparentProxyFromInstance {
                 SecurityProtocol.SASL_PLAINTEXT,
                 new ByteArraySerializer(),
                 new ByteArrayDeserializer(),
+                null,
                 configs);
         Runtime.getRuntime().addShutdownHook(new Thread(server::close));
         server.start();

@@ -1,5 +1,10 @@
 package com.nucypher.kafka.proxy;
 
+import com.nucypher.kafka.clients.ReEncryptionHandler;
+import com.nucypher.kafka.proxy.config.AbstractProxyConfig;
+import com.nucypher.kafka.proxy.config.ProxyConfig;
+import com.nucypher.kafka.proxy.handler.MessageHandler;
+import com.nucypher.kafka.proxy.handler.MessageHandlerRouter;
 import org.apache.commons.io.IOUtils;
 import org.apache.kafka.clients.ClientUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
@@ -48,6 +53,7 @@ public class ProxyServer implements Closeable {
      * @param securityProtocol    security protocol
      * @param serializer          serializer
      * @param deserializer        deserializer
+     * @param reEncryptionHandler re-encryption handler
      * @param configs             configuration
      * @throws IOException when error while opening socket
      */
@@ -59,6 +65,7 @@ public class ProxyServer implements Closeable {
                        SecurityProtocol securityProtocol,
                        Serializer<byte[]> serializer,
                        Deserializer<byte[]> deserializer,
+                       ReEncryptionHandler reEncryptionHandler,
                        Map<?, ?> configs) throws IOException {
         AbstractProxyConfig config = new AbstractProxyConfig(configs);
         configure(localPort,
@@ -69,6 +76,8 @@ public class ProxyServer implements Closeable {
                 securityProtocol,
                 serializer,
                 deserializer,
+                reEncryptionHandler,
+                reEncryptionHandler != null ? ProxyType.BROKER : ProxyType.CLIENT,
                 config);
     }
 
@@ -80,6 +89,8 @@ public class ProxyServer implements Closeable {
                            SecurityProtocol securityProtocol,
                            Serializer<byte[]> serializer,
                            Deserializer<byte[]> deserializer,
+                           ReEncryptionHandler reEncryptionHandler,
+                           ProxyType proxyType,
                            AbstractConfig configs) throws IOException {
         Metrics metrics = new Metrics();
         Time time = new SystemTime();
@@ -88,8 +99,15 @@ public class ProxyServer implements Closeable {
         for (int i = 0; i < numHandlers; i++) {
             handlers[i] = new MessageHandler(i);
         }
-        MessageHandlerRouter router = new MessageHandlerRouter(
-                handlers, serializer, deserializer);
+        MessageHandlerRouter router;
+        if (proxyType == ProxyType.CLIENT) {
+            //TODO serializer/deserializer are not threadsafe
+            router = new MessageHandlerRouter(
+                    handlers, serializer, deserializer);
+        } else {
+            router = new MessageHandlerRouter(
+                    handlers, reEncryptionHandler);
+        }
 
         processors = new Processor[numProcessors];
         acceptor = new Acceptor(LOCALHOST, localPort, processors);
@@ -119,12 +137,23 @@ public class ProxyServer implements Closeable {
     @SuppressWarnings("unchecked")
     public ProxyServer(Map<?, ?> configs) throws IOException {
         ProxyConfig config = new ProxyConfig(configs);
-        Serializer<byte[]> serializer = config.getConfiguredInstance(
-                ProxyConfig.VALUE_SERIALIZER_CLASS_CONFIG, Serializer.class);
-        serializer.configure((Map<String, Object>) configs, false);
-        Deserializer<byte[]> deserializer = config.getConfiguredInstance(
-                ProxyConfig.VALUE_DESERIALIZER_CLASS_CONFIG, Deserializer.class);
-        deserializer.configure((Map<String, Object>) configs, false);
+        String proxyTypeString = config.getString(ProxyConfig.PROXY_TYPE);
+        ProxyType proxyType = ProxyType.valueOf(proxyTypeString.toUpperCase());
+        Serializer<byte[]> serializer = null;
+        Deserializer<byte[]> deserializer = null;
+        ReEncryptionHandler reEncryptionHandler = null;
+        if (proxyType == ProxyType.CLIENT) {
+            serializer = config.getConfiguredInstance(
+                    ProxyConfig.VALUE_SERIALIZER_CLASS_CONFIG, Serializer.class);
+            serializer.configure((Map<String, Object>) configs, false);
+            deserializer = config.getConfiguredInstance(
+                    ProxyConfig.VALUE_DESERIALIZER_CLASS_CONFIG, Deserializer.class);
+            deserializer.configure((Map<String, Object>) configs, false);
+        } else {
+            String zooKeeperHost = config.getString(ProxyConfig.ZOOKEEPER_CONNECT);
+            reEncryptionHandler = new ReEncryptionHandler(zooKeeperHost, config);
+        }
+
         List<InetSocketAddress> addresses = ClientUtils.parseAndValidateAddresses(
                 config.getList(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG));
         InetSocketAddress address = addresses.get(0);
@@ -137,6 +166,8 @@ public class ProxyServer implements Closeable {
                 SecurityProtocol.forName(config.getString(ProxyConfig.SECURITY_PROTOCOL_CONFIG)),
                 serializer,
                 deserializer,
+                reEncryptionHandler,
+                proxyType,
                 config
         );
     }

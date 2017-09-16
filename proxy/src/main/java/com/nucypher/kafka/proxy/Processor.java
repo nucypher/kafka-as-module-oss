@@ -1,5 +1,6 @@
 package com.nucypher.kafka.proxy;
 
+import com.nucypher.kafka.proxy.handler.MessageHandlerRouter;
 import kafka.network.RequestChannel;
 import org.apache.commons.io.IOUtils;
 import org.apache.kafka.common.Node;
@@ -220,7 +221,7 @@ public class Processor extends Thread implements Closeable {
                         selector.channel(receive.source()),
                         receive);
             } else {
-                send = updateReceive(destination, receive);
+                send = updateReceive(destination, channel, receive);
             }
             if (send == null) {
                 continue;
@@ -265,14 +266,21 @@ public class Processor extends Thread implements Closeable {
         queue.add(new ClientRequest(request.connectionId(), header));
         if (ApiKeys.forId(apiKey) == ApiKeys.PRODUCE) {
             ProduceRequest produceRequest = (ProduceRequest) request.bodyAndSize().request;
-            router.enqueueProduceRequest(this, destination, request.header(), produceRequest);
+            router.enqueueProduceRequest(
+                    this,
+                    destination,
+                    request.header(),
+                    produceRequest,
+                    clientChannel.principal().getName());
             return null;
         }
         return new NetworkSend(destination, receive.payload());
     }
 
     private Send updateReceive(
-            String destination, NetworkReceive receive) throws IOException {
+            String destination,
+            KafkaChannel clientChannel,
+            NetworkReceive receive) throws IOException {
         ByteBuffer copy = receive.payload().duplicate();
         ResponseHeader responseHeader = ResponseHeader.parse(copy);
         ClientRequest request = requests.get(destination).poll();
@@ -301,7 +309,12 @@ public class Processor extends Thread implements Closeable {
             send = new ResponseSend(connectionId, responseHeader, response);
         }*/ else if (apiKeys == ApiKeys.FETCH) {
             FetchResponse response = new FetchResponse(responseBody);
-            router.enqueueFetchResponse(this, destination, header, response);
+            router.enqueueFetchResponse(
+                    this,
+                    destination,
+                    header,
+                    response,
+                    clientChannel.principal().getName());
             send = null;
         } else {
             send = new NetworkSend(destination, receive.payload());

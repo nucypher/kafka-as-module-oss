@@ -1,9 +1,10 @@
-package com.nucypher.kafka.proxy;
+package com.nucypher.kafka.proxy.handler;
 
+import com.nucypher.kafka.clients.ReEncryptionHandler;
+import com.nucypher.kafka.proxy.Processor;
 import org.apache.kafka.common.requests.FetchResponse;
 import org.apache.kafka.common.requests.ProduceRequest;
 import org.apache.kafka.common.requests.RequestHeader;
-import org.apache.kafka.common.requests.ResponseHeader;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.slf4j.Logger;
@@ -23,11 +24,14 @@ public class MessageHandlerRouter {
     private final ConcurrentHashMap<String, MessageHandler> activeHandlers =
             new ConcurrentHashMap<>(); //TODO remove disconnected destination
     private final AtomicInteger currentHandlerIndex = new AtomicInteger(0);
-    private final Serializer<byte[]> serializer;
-    private final Deserializer<byte[]> deserializer;
+    private Serializer<byte[]> serializer;
+    private Deserializer<byte[]> deserializer;
+    private ReEncryptionHandler reEncryptionHandler;
 
     /**
-     * @param handlers array of {@link MessageHandler}
+     * @param handlers     array of {@link MessageHandler}
+     * @param serializer   serializer
+     * @param deserializer deserializer
      */
     public MessageHandlerRouter(MessageHandler[] handlers,
                                 Serializer<byte[]> serializer,
@@ -38,42 +42,84 @@ public class MessageHandlerRouter {
     }
 
     /**
+     * @param handlers            array of {@link MessageHandler}
+     * @param reEncryptionHandler re-ecnryption handler
+     */
+    public MessageHandlerRouter(MessageHandler[] handlers,
+                                ReEncryptionHandler reEncryptionHandler) {
+        this.availableHandlers = handlers;
+        this.reEncryptionHandler = reEncryptionHandler;
+    }
+
+    /**
      * Enqueue {@link ProduceRequest} for handling
      *
      * @param processor      {@link Processor} that has received a request
      * @param destination    destination id
      * @param requestHeader  request header
      * @param produceRequest request
+     * @param principal      Kafka principal
      */
     public void enqueueProduceRequest(Processor processor,
                                       String destination,
                                       RequestHeader requestHeader,
-                                      ProduceRequest produceRequest) {
+                                      ProduceRequest produceRequest,
+                                      String principal) {
         MessageHandler currentHandler = getMessageHandler(destination);
-        MessageHandler.RequestOrResponse request = new MessageHandler.RequestOrResponse(
-                processor, destination, requestHeader, produceRequest, serializer);
+        MessageHandler.RequestOrResponse request;
+        if (reEncryptionHandler != null) {
+            request = new MessageHandler.RequestOrResponse(
+                    processor,
+                    destination,
+                    requestHeader,
+                    produceRequest,
+                    reEncryptionHandler,
+                    principal);
+        } else {
+            request = new MessageHandler.RequestOrResponse(
+                    processor,
+                    destination,
+                    requestHeader,
+                    produceRequest,
+                    serializer,
+                    principal);
+        }
         currentHandler.enqueue(request);
     }
 
     /**
      * Enqueue {@link FetchResponse} for handling
      *
-     * @param processor      {@link Processor} that has received a response
-     * @param destination    destination id
-     * @param requestHeader  request header
-     * @param fetchResponse  response
+     * @param processor     {@link Processor} that has received a response
+     * @param destination   destination id
+     * @param requestHeader request header
+     * @param fetchResponse response
+     * @param principal     Kafka principal
      */
     public void enqueueFetchResponse(Processor processor,
                                      String destination,
                                      RequestHeader requestHeader,
-                                     FetchResponse fetchResponse) {
+                                     FetchResponse fetchResponse,
+                                     String principal) {
         MessageHandler currentHandler = getMessageHandler(destination);
-        MessageHandler.RequestOrResponse response = new MessageHandler.RequestOrResponse(
-                processor,
-                destination,
-                requestHeader,
-                fetchResponse,
-                deserializer);
+        MessageHandler.RequestOrResponse response;
+        if (reEncryptionHandler != null) {
+            response = new MessageHandler.RequestOrResponse(
+                    processor,
+                    destination,
+                    requestHeader,
+                    fetchResponse,
+                    reEncryptionHandler,
+                    principal);
+        } else {
+            response = new MessageHandler.RequestOrResponse(
+                    processor,
+                    destination,
+                    requestHeader,
+                    fetchResponse,
+                    deserializer,
+                    principal);
+        }
         currentHandler.enqueue(response);
     }
 

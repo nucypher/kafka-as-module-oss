@@ -1,5 +1,6 @@
-package com.nucypher.kafka.proxy;
+package com.nucypher.kafka.proxy.config;
 
+import com.nucypher.kafka.clients.ReEncryptionHandlerConfigs;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -31,7 +32,7 @@ public class AbstractProxyConfig extends AbstractConfig {
             SaslConfigs.SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES;
 
     static {
-        CONFIG = new ConfigDef()
+        CONFIG = ReEncryptionHandlerConfigs.getConfigDef()
                 // security support
                 .define(SASL_ENABLED_MECHANISMS,
                         ConfigDef.Type.LIST,

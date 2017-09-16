@@ -1,13 +1,17 @@
 apply plugin: 'java'
+apply plugin: 'application'
 
 group 'com.nucypher.kafka'
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
 
-jar {
-    archiveName = "nucypher-kafka-proxy-${version}.${extension}"
-}
+mainClassName = 'com.nucypher.kafka.proxy.ProxyServer'
+applicationName = 'nucypher-kafka-proxy'
+
+//jar {
+//    archiveName = "nucypher-kafka-proxy-${version}.${extension}"
+//}
 
 dependencies {
 
@@ -24,3 +28,23 @@ dependencies {
     testCompile "junit:junit:$junitVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
 }
+
+task copyToLib(type: Copy) {
+
+    into "$buildDir/libs/lib"
+    from configurations.runtime
+
+    doLast {
+        jar {
+            archiveName = "$applicationName-${version}.${extension}"
+
+            manifest {
+                attributes("Main-Class": mainClassName)
+                attributes("Class-Path": configurations.runtime.collect { "lib/$it.name" }.join(' '))
+            }
+        }
+    }
+
+}
+
+jar.dependsOn copyToLib
