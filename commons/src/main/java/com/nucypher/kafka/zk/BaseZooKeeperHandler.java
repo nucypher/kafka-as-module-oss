@@ -6,6 +6,8 @@ import com.nucypher.kafka.utils.GranularUtils;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.Code;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.common.PathUtils;
 import org.apache.zookeeper.data.Stat;
@@ -64,6 +66,34 @@ public class BaseZooKeeperHandler {
      */
     protected BaseZooKeeperHandler() {
 
+    }
+
+    /**
+     * Create new instance with new connection to ZooKeeper
+     *
+     * @param hostPort     ZooKeeper address
+     * @param keysRootPath root path with keys
+     * @throws CommonException if connection to ZooKeeper cannot be established or
+     *                         if problem with key root path in ZooKeeper
+     */
+    public BaseZooKeeperHandler(String hostPort, String keysRootPath)
+            throws CommonException {
+        PathUtils.validatePath(keysRootPath);
+        if (keysRootPath.length() == 1) {
+            throw new CommonException("Path must not be root");
+        }
+        this.keysRootPath = keysRootPath;
+        try {
+            zooKeeperClient = new ZooKeeper(hostPort, 3000, new Watcher() {
+                @Override
+                public void process(WatchedEvent event) {
+
+                }
+            });
+            LOGGER.info("Connection to the server {} is established", hostPort);
+        } catch (IOException e) {
+            throw new CommonException(e);
+        }
     }
 
     /**
