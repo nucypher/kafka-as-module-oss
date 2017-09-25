@@ -75,8 +75,8 @@ public class Processor extends Thread implements Closeable {
      * @param connectionMaxIdleMS connection max idle in milliseconds
      * @param metrics             metrics
      * @param time                time
-     * @param localHost           local host
-     * @param localPort           local port
+     * @param proxyHost           proxy host
+     * @param proxyPort           proxy port
      * @param broker              broker address
      * @param channelConfigs      channel configs
      */
@@ -86,8 +86,8 @@ public class Processor extends Thread implements Closeable {
                      long connectionMaxIdleMS,
                      Metrics metrics,
                      Time time,
-                     String localHost,
-                     int localPort,
+                     String proxyHost,
+                     int proxyPort,
                      InetSocketAddress broker,
                      MessageHandlerRouter router,
                      AbstractConfig channelConfigs) throws UnknownHostException {
@@ -96,7 +96,7 @@ public class Processor extends Thread implements Closeable {
         this.time = time;
         this.router = router;
         this.broker = broker;
-        this.thisNode = new Node(0, localHost, localPort);
+        this.thisNode = new Node(0, proxyHost, proxyPort);
         setName("processor-" + id);
         channelBuilder = new ClientBrokerChannelBuilder(securityProtocol, channelConfigs);
         Map<String, String> metricTags = new HashMap<>(1);

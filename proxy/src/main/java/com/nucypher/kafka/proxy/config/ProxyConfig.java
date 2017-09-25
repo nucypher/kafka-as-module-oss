@@ -53,6 +53,12 @@ public class ProxyConfig extends AbstractProxyConfig {
      */
     public static final String SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES =
             SaslConfigs.SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES;
+    /**
+     * <code>proxy.host</code>
+     */
+    public static final String PROXY_HOST_CONFIG = "proxy.host";
+    public static final String PROXY_HOST_DOC = "Hostname or IP for listening by proxy";
+    public static final String DEFAULT_PROXY_HOST = "127.0.0.1";
 
     /**
      * <code>proxy.port</code>
@@ -111,6 +117,11 @@ public class ProxyConfig extends AbstractProxyConfig {
                         ConfigDef.Importance.MEDIUM,
                         CommonClientConfigs.CONNECTIONS_MAX_IDLE_MS_DOC)
                 // proxy configuration
+                .define(PROXY_HOST_CONFIG,
+                        ConfigDef.Type.STRING,
+                        DEFAULT_PROXY_HOST,
+                        ConfigDef.Importance.HIGH,
+                        PROXY_HOST_DOC)
                 .define(PROXY_PORT_CONFIG,
                         ConfigDef.Type.INT,
                         DEFAULT_PROXY_PORT,

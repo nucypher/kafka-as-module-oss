@@ -25,6 +25,7 @@ public class TransparentProxyFromInstance {
         configs.put(SaslConfigs.SASL_ENABLED_MECHANISMS,
                 Collections.singletonList("PLAIN"));
         final ProxyServer server = new ProxyServer(
+                null,
                 9192,
                 1,
                 1,

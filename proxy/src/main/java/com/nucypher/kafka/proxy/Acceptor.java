@@ -21,6 +21,7 @@ public class Acceptor extends Thread implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(Acceptor.class);
 
     private final ServerSocketChannel serverSocketChannel;
+    private final String serverHost;
     private final int port;
     private final Processor[] processors;
 
@@ -39,6 +40,7 @@ public class Acceptor extends Thread implements Closeable {
         serverSocketChannel.socket().bind(new InetSocketAddress(serverHost, port));
         this.port = serverSocketChannel.socket().getLocalPort();
         this.processors = processors;
+        this.serverHost = serverHost;
     }
 
     /**
@@ -53,7 +55,7 @@ public class Acceptor extends Thread implements Closeable {
         try {
             java.nio.channels.Selector acceptSelector = java.nio.channels.Selector.open();
             serverSocketChannel.register(acceptSelector, SelectionKey.OP_ACCEPT);
-            LOGGER.info("Acceptor listens on port {}", port);
+            LOGGER.info("Acceptor listens on {}:{}", serverHost, port);
             while (!isInterrupted() && serverSocketChannel.isOpen()) {
                 if (acceptSelector.select(1000) > 0) {
                     accept(acceptSelector);

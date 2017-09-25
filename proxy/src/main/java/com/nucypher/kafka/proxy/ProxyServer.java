@@ -35,17 +35,18 @@ public class ProxyServer implements Closeable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProxyServer.class);
     private static final long DEFAULT_CONNECTION_MAX_IDLE_MS = 9 * 60 * 1000;
-    private static final String LOCALHOST = "127.0.0.1"; //TODO add not only localhost endpoint
 
     private MessageHandler[] handlers;
     private Processor[] processors;
     private Acceptor acceptor;
+    private String serverHost;
     private int port;
 
     /**
      * Create proxy server
      *
-     * @param localPort           local port
+     * @param proxyHost           proxy hostname or ip
+     * @param proxyPort           proxy port
      * @param numProcessors       number of processors
      * @param numHandlers         number of handlers
      * @param brokerHost          broker host
@@ -57,7 +58,8 @@ public class ProxyServer implements Closeable {
      * @param configs             configuration
      * @throws IOException when error while opening socket
      */
-    public ProxyServer(int localPort,
+    public ProxyServer(String proxyHost,
+                       int proxyPort,
                        int numProcessors,
                        int numHandlers,
                        String brokerHost,
@@ -68,7 +70,8 @@ public class ProxyServer implements Closeable {
                        ReEncryptionHandler reEncryptionHandler,
                        Map<?, ?> configs) throws IOException {
         AbstractProxyConfig config = new AbstractProxyConfig(configs);
-        configure(localPort,
+        configure(proxyHost,
+                proxyPort,
                 numProcessors,
                 numHandlers,
                 new InetSocketAddress(brokerHost, brokerPort),
@@ -81,7 +84,8 @@ public class ProxyServer implements Closeable {
                 config);
     }
 
-    private void configure(int localPort,
+    private void configure(String serverHost,
+                           int localPort,
                            int numProcessors,
                            int numHandlers,
                            InetSocketAddress broker,
@@ -94,6 +98,9 @@ public class ProxyServer implements Closeable {
                            AbstractConfig configs) throws IOException {
         Metrics metrics = new Metrics();
         Time time = new SystemTime();
+        if (serverHost == null) {
+            serverHost = ProxyConfig.DEFAULT_PROXY_HOST;
+        }
 
         handlers = new MessageHandler[numHandlers];
         for (int i = 0; i < numHandlers; i++) {
@@ -110,8 +117,9 @@ public class ProxyServer implements Closeable {
         }
 
         processors = new Processor[numProcessors];
-        acceptor = new Acceptor(LOCALHOST, localPort, processors);
+        acceptor = new Acceptor(serverHost, localPort, processors);
         this.port = acceptor.getPort();
+        this.serverHost = serverHost;
 
         //TODO change to ThreadPool with thread auto restart
         for (int i = 0; i < numProcessors; i++) {
@@ -122,7 +130,7 @@ public class ProxyServer implements Closeable {
                     connectionMaxIdleMS,
                     metrics,
                     time,
-                    LOCALHOST,
+                    serverHost,
                     port,
                     broker,
                     router,
@@ -158,6 +166,7 @@ public class ProxyServer implements Closeable {
                 config.getList(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG));
         InetSocketAddress address = addresses.get(0);
         configure(
+                config.getString(ProxyConfig.PROXY_HOST_CONFIG),
                 config.getInt(ProxyConfig.PROXY_PORT_CONFIG),
                 config.getInt(ProxyConfig.PROXY_NUM_PROCESSORS_CONFIG),
                 config.getInt(ProxyConfig.PROXY_NUM_HANDLERS_CONFIG),
@@ -183,7 +192,7 @@ public class ProxyServer implements Closeable {
             processor.start();
         }
         acceptor.start();
-        LOGGER.info("Proxy server on port {} was started", port);
+        LOGGER.info("Proxy server {}:{} was started", serverHost, port);
     }
 
     @Override
