@@ -3,9 +3,11 @@ package com.nucypher.kafka.proxy.handler;
 import com.nucypher.kafka.clients.ReEncryptionHandler;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.proxy.Processor;
+import com.nucypher.kafka.proxy.Utils;
 import com.nucypher.kafka.zk.ClientType;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.network.Send;
+import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.MemoryRecords;
 import org.apache.kafka.common.record.MemoryRecordsBuilder;
 import org.apache.kafka.common.record.Record;
@@ -13,6 +15,7 @@ import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.record.Records;
 import org.apache.kafka.common.requests.FetchResponse;
 import org.apache.kafka.common.requests.ProduceRequest;
+import org.apache.kafka.common.requests.ProduceResponse;
 import org.apache.kafka.common.requests.RequestHeader;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
@@ -21,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -107,8 +111,17 @@ public class MessageHandler extends Thread implements Closeable {
                     produceRecordsByPartition).build(header.apiVersion());
             return newProduceRequest.toSend(destination, header);
         } catch (Exception e) {
-            //TODO return send with error
-            throw e;
+            LOGGER.warn("Error while updating produce request", e);
+            Map<TopicPartition, MemoryRecords> produceRecordsByPartition =
+                    produceRequest.partitionRecordsOrFail();
+            Map<TopicPartition, ProduceResponse.PartitionResponse> errors =
+                    new HashMap<>(produceRecordsByPartition.size());
+            for (TopicPartition topicPartition : produceRecordsByPartition.keySet()) {
+                errors.put(topicPartition,
+                        new ProduceResponse.PartitionResponse(Errors.UNKNOWN));
+            }
+            ProduceResponse produceResponse = new ProduceResponse(errors);
+            return produceResponse.toSend(Utils.getDestination(destination), header);
         }
     }
 
@@ -164,8 +177,22 @@ public class MessageHandler extends Thread implements Closeable {
             response = new FetchResponse(data, response.throttleTimeMs());
             return response.toSend(destination, header);
         } catch (Exception e) {
-            //TODO return send with error
-            throw e;
+            LOGGER.warn("Error while updating fetch response", e);
+            LinkedHashMap<TopicPartition, FetchResponse.PartitionData> data =
+                    response.responseData();
+            LinkedHashMap<TopicPartition, FetchResponse.PartitionData> errors =
+                    new LinkedHashMap<>(data.size());
+            for (TopicPartition topicPartition : data.keySet()) {
+                errors.put(topicPartition, new FetchResponse.PartitionData(
+                        Errors.UNKNOWN,
+                        FetchResponse.INVALID_HIGHWATERMARK,
+                        FetchResponse.INVALID_LAST_STABLE_OFFSET,
+                        FetchResponse.INVALID_LOG_START_OFFSET,
+                        null,
+                        MemoryRecords.EMPTY));
+            }
+            response = new FetchResponse(errors, response.throttleTimeMs());
+            return response.toSend(destination, header);
         }
     }
 
@@ -173,7 +200,8 @@ public class MessageHandler extends Thread implements Closeable {
             FetchResponse response,
             String principalName,
             MessageTransformer messageTransformer) {
-        LinkedHashMap<TopicPartition, FetchResponse.PartitionData> data = response.responseData();
+        LinkedHashMap<TopicPartition, FetchResponse.PartitionData> data =
+                response.responseData();
         for (Map.Entry<TopicPartition, FetchResponse.PartitionData> entry : data.entrySet()) {
             FetchResponse.PartitionData partitionData = entry.getValue();
             Records records = partitionData.records;
@@ -239,7 +267,6 @@ public class MessageHandler extends Thread implements Closeable {
                     valueBytes = new byte[value.remaining()];
                     value.get(valueBytes);
                 }
-                //TODO if error need send response
                 valueBytes = messageTransformer.transform(
                         topic, valueBytes, principalName, clientType);
 

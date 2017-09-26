@@ -298,10 +298,8 @@ public class Processor extends Thread implements Closeable {
                     response.throttleTimeMs(),
                     Collections.singletonList(thisNode),
                     response.clusterId(),
-                    response.controller().id(),
+                    response.controller() != null ? response.controller().id() : -1,
                     new ArrayList<>(response.topicMetadata()));
-//            send = new RequestOrResponseSend(connectionId, responseHeader, response);
-//            send = new TopicMetadataResponse()
             send = response.toSend(connectionId, header);
         } /*else if (ApiKeys.forId(apiKey) == ApiKeys.GROUP_COORDINATOR) {
             GroupCoordinatorResponse response = new GroupCoordinatorResponse(responseBody);
