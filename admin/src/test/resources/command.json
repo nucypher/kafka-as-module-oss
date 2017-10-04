@@ -1,0 +1,9 @@
+{
+  "command-type": "add_key",
+  "master-key": "masterKey",
+  "client-key": "clientKey",
+  "curve-name": "curveName",
+  "client-type": "consumer",
+  "client-name": "clientName",
+  "channel-name": "channelName"
+}

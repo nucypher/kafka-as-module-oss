@@ -1,0 +1,96 @@
+[
+  {
+    "command-type": "add_key",
+    "encryption-algorithm": "elgamal",
+    "master-key": "masterKey",
+    "client-key": "clientKey",
+    "curve-name": "curveName",
+    "client-type": "cons",
+    "key-type": "private",
+    "client-name": "clientName",
+    "channel-name": "channelName",
+    "fields": ["a.c", "b"]
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "masterKey",
+    "client-key": "clientKey",
+    "client-type": "prod",
+    "key-type": "pub",
+    "client-name": "clientName",
+    "channel-name": "channelName",
+    "expired-date": "2017-01-01T00:00:00Z"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "masterKey",
+    "client-key": "clientKey",
+    "client-type": "producer",
+    "client-name": "clientName",
+    "channel-name": "channelName",
+    "expired-date": "2017-01-01T00:00:00Z",
+    "fields": ["a.c", "b"],
+    "channel-data-accessor": "com.nucypher.kafka.clients.granular.StructuredDataAccessorStub"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "masterKey",
+    "client-key": "clientKey",
+    "client-type": "producer",
+    "client-name": "clientName",
+    "channel-name": "channelName",
+    "expired-days": "10",
+    "fields": ["a.c", "b"],
+    "channel-data-format": "json"
+  },
+  {
+    "command-type": "delete_key",
+    "client-type": "producer",
+    "client-name": "clientName",
+    "channel-name": "channelName"
+  },
+  {
+    "command-type": "delete_key",
+    "client-type": "consumer",
+    "client-name": "clientName",
+    "channel-name": "channelName",
+    "fields": ["a.c"]
+  },
+  {
+    "command-type": "delete_channel",
+    "channel-name": "channelName"
+  },
+  {
+    "command-type": "add_channel",
+    "channel-name": "channelName"
+  },
+  {
+    "command-type": "add_channel",
+    "channel-name": "channelName",
+    "channel-type": "granular",
+    "channel-data-accessor": "com.nucypher.kafka.clients.granular.StructuredDataAccessorStub"
+  },
+  {
+    "command-type": "add_channel",
+    "channel-name": "channelName",
+    "channel-type": "granular",
+    "channel-data-format": "json"
+  },
+  {
+    "command-type": "add_key",
+    "client-type": "consumer",
+    "client-name": "clientName",
+    "channel-name": "channelName"
+  },
+  {
+    "command-type": "generate",
+    "curve-name": "curveName",
+    "private-key-path": "privateKey"
+  },
+  {
+    "command-type": "generate",
+    "curve-name": "curveName",
+    "private-key-path": "privateKey",
+    "public-key-path": "publicKey"
+  }
+]

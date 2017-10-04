@@ -1,0 +1,117 @@
+[
+  {
+    "command-type": "generate",
+    "curve-name": "secp521r1",
+    "private-key-path": "keys/master-private-key.pem",
+    "public-key-path": "keys/master-public-key.pem"
+  },
+  {
+    "command-type": "generate",
+    "curve-name": "secp521r1",
+    "private-key-path": "keys/producer-private-key.pem",
+    "public-key-path": "keys/producer-public-key.pem"
+  },
+  {
+    "command-type": "generate",
+    "curve-name": "secp521r1",
+    "private-key-path": "keys/consumer-private-key.pem",
+    "public-key-path": "keys/consumer-public-key.pem"
+  },
+  {
+    "command-type": "add_channel",
+    "channel-name": "full",
+    "channel-type": "full"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "keys/master-private-key.pem",
+    "client-key": "keys/producer-private-key.pem",
+    "client-type": "producer",
+    "client-name": "alice",
+    "channel-name": "full",
+    "expired-days": "365"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "keys/master-private-key.pem",
+    "client-key": "keys/consumer-private-key.pem",
+    "client-type": "consumer",
+    "client-name": "alice",
+    "channel-name": "full",
+    "expired-days": "365"
+  },
+  {
+    "command-type": "add_key",
+    "client-type": "producer",
+    "client-name": "alice",
+    "channel-name": "full2"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "keys/master-private-key.pem",
+    "client-key": "keys/consumer-public-key.pem",
+    "client-type": "consumer",
+    "client-name": "alice",
+    "channel-name": "full2",
+    "expired-days": "365"
+  },
+  {
+    "command-type": "add_key",
+    "client-type": "producer",
+    "client-name": "alice",
+    "channel-name": "full3"
+  },
+  {
+    "command-type": "add_key",
+    "client-type": "consumer",
+    "client-name": "alice",
+    "channel-name": "full3"
+  },
+  {
+    "command-type": "add_channel",
+    "channel-name": "granular",
+    "channel-type": "granular",
+    "channel-data-format": "json"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "keys/master-private-key.pem",
+    "client-key": "keys/producer-private-key.pem",
+    "client-type": "producer",
+    "client-name": "alice",
+    "channel-name": "granular",
+    "expired-days": "365",
+    "fields": ["a.1", "b.b", "c", "d", "e.e.e.1"]
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "keys/master-private-key.pem",
+    "client-key": "keys/consumer-private-key.pem",
+    "client-type": "consumer",
+    "client-name": "alice",
+    "channel-name": "granular",
+    "expired-days": "365",
+    "fields": ["a.1", "b.b", "d", "e.e.e.1"]
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "keys/master-private-key.pem",
+    "client-key": "keys/master-private-key.pem",
+    "client-type": "producer",
+    "client-name": "alice",
+    "channel-name": "granular2",
+    "expired-days": "365",
+    "fields": ["a.1", "b.b", "c", "d", "e.e.e.1"],
+    "channel-data-format": "json"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "keys/master-private-key.pem",
+    "client-key": "keys/consumer-public-key.pem",
+    "client-type": "consumer",
+    "client-name": "alice",
+    "channel-name": "granular2",
+    "expired-days": "365",
+    "fields": ["a.1", "b.b", "d", "e.e.e.1"]
+  }
+]

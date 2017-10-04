@@ -107,6 +107,8 @@ public class Console {
                         (DataFormat) options.valueOf("cdf"));
             } else if (options.has("rmc")) {
                 handler.deleteChannel((String) options.valueOf("ch"));
+            } else if (options.has("lf")) {
+                handler.loadFromFile((String) options.valueOf("pf"));
             } else {
                 parser.printHelpOn(System.out);
             }
@@ -121,6 +123,7 @@ public class Console {
         List<String> addChannelSynonyms = Arrays.asList("add-channel", "create-channel", "adc");
         List<String> removeChannelSynonyms = Arrays.asList("delete-channel", "remove-channel", "rmc");
         List<String> generateKeySynonyms = Arrays.asList("generate", "gn");
+        List<String> loadFileSynonyms = Arrays.asList("load-file", "lf");
         List<String> listSynonyms = Arrays.asList("list", "ls");
         List<String> helpSynonyms = Arrays.asList("help", "h");
 
@@ -129,11 +132,12 @@ public class Console {
         String addChannelCommand = addChannelSynonyms.get(0);
         String removeChannelCommand = removeChannelSynonyms.get(0);
         String generateKeyCommand = generateKeySynonyms.get(0);
+        String loadFileCommand = loadFileSynonyms.get(0);
         String listCommand = listSynonyms.get(0);
         String helpKeyCommand = helpSynonyms.get(0);
 
         List<String> commands = Arrays.asList(addKeyCommand, removeKeyCommand, generateKeyCommand,
-                listCommand, helpKeyCommand, addChannelCommand, removeChannelCommand);
+                listCommand, helpKeyCommand, addChannelCommand, removeChannelCommand, loadFileCommand);
 
         OptionParser parser = new OptionParser();
         parser.acceptsAll(helpSynonyms, "print this help").forHelp();
@@ -152,6 +156,8 @@ public class Console {
                 "create the channel in the storage");
         OptionSpecBuilder deleteChannelBuilder = parser.acceptsAll(removeChannelSynonyms,
                 "delete the channel from the storage");
+        OptionSpecBuilder loadFileBuilder = parser.acceptsAll(loadFileSynonyms,
+                "load commands and parameters from file");
         parser.acceptsAll(listSynonyms,
                 "list all re-encryption keys or channels in the storage")
                 .requiredUnless("h", filterCommands(commands, listCommand))
@@ -166,6 +172,8 @@ public class Console {
                 .availableUnless("h", filterCommands(commands, removeChannelCommand));
         generateBuilder.requiredUnless("h", filterCommands(commands, generateKeyCommand))
                 .availableUnless("h", filterCommands(commands, generateKeyCommand));
+        loadFileBuilder.requiredUnless("h", filterCommands(commands, loadFileCommand))
+                .availableUnless("h", filterCommands(commands, loadFileCommand));
 
         parser.acceptsAll(Arrays.asList("client-type", "ct"), "client type")
                 .requiredIf(addKeyCommand, removeKeyCommand)
@@ -242,6 +250,12 @@ public class Console {
                 .availableIf(generateKeyCommand)
                 .withRequiredArg()
                 .withValuesConvertedBy(new NamedConverter<>(KeyType::values));
+
+        parser.acceptsAll(Arrays.asList("parameters-file", "pf"),
+                "path to the file with commands and parameters")
+                .requiredIf(loadFileCommand)
+                .availableIf(loadFileCommand)
+                .withRequiredArg();
 
         parser.acceptsAll(Arrays.asList("only-channels", "oc"), "list only channels")
                 .availableIf(listCommand);

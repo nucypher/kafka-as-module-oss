@@ -1,0 +1,35 @@
+[
+  {
+    "command-type": "add_key",
+    "master-key": "masterKey",
+    "expired-date": "2017-01-01T00:00:00Z",
+    "expired-days": "10"
+  },
+  {
+    "command-type": "add_key",
+    "master-key": "masterKey",
+    "client-key": "clientKey",
+    "client-type": "prod",
+    "key-type": "pub",
+    "client-name": "clientName",
+    "channel-name": "channelName",
+    "channel-data-accessor": "com.nucypher.kafka.clients.granular.StructuredDataAccessorStub",
+    "channel-data-format": "json"
+  },
+  {
+    "command-type": "delete_key",
+    "fields": ["a.c", "b"]
+  },
+  {
+    "command-type": "delete_channel"
+  },
+  {
+    "command-type": "add_channel",
+    "channel-type": "granular",
+    "channel-data-accessor": "com.nucypher.kafka.clients.granular.StructuredDataAccessorStub",
+    "channel-data-format": "json"
+  },
+  {
+    "command-type": "generate"
+  }
+]

@@ -1,6 +1,8 @@
 package com.nucypher.kafka.admin;
 
 import com.nucypher.crypto.EncryptionAlgorithm;
+import com.nucypher.kafka.admin.databind.Command;
+import com.nucypher.kafka.admin.databind.CommandFactory;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessor;
 import com.nucypher.kafka.encrypt.ReEncryptionKeyManager;
@@ -22,6 +24,7 @@ import java.security.PrivateKey;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -258,8 +261,10 @@ public class AdminHandler {
      * @param field       the field in the data structure to which this key belongs.
      *                    If null and channel type is GRANULAR then will be deleted all subkeys
      */
-    public void deleteReEncryptionKey(ClientType type, String clientName, String channelName, String field)
-            throws CommonException {
+    public void deleteReEncryptionKey(ClientType type,
+                                      String clientName,
+                                      String channelName,
+                                      String field) throws CommonException {
         Channel channel = zooKeeperHandler.getChannel(channelName);
         if (channel != null && channel.getType() == EncryptionType.GRANULAR && field == null) {
             deleteGranularReEncryptionKeys(type, clientName, channel);
@@ -277,10 +282,13 @@ public class AdminHandler {
         }
     }
 
-    private void deleteGranularReEncryptionKeys(ClientType type, String clientName, Channel channel) {
+    private void deleteGranularReEncryptionKeys(
+            ClientType type, String clientName, Channel channel) {
         for (String channelField : channel.getFields()) {
-            if (zooKeeperHandler.isKeyExists(channel.getName(), clientName, type, channelField)) {
-                zooKeeperHandler.deleteKeyFromZooKeeper(channel.getName(), clientName, type, channelField);
+            if (zooKeeperHandler.isKeyExists(
+                    channel.getName(), clientName, type, channelField)) {
+                zooKeeperHandler.deleteKeyFromZooKeeper(
+                        channel.getName(), clientName, type, channelField);
             }
         }
     }
@@ -312,8 +320,10 @@ public class AdminHandler {
      * @param accessorClassName accessor class name
      * @param format            data format
      */
-    public void createChannel(
-            String channel, EncryptionType type, String accessorClassName, DataFormat format) {
+    public void createChannel(String channel,
+                              EncryptionType type,
+                              String accessorClassName,
+                              DataFormat format) {
         Class<? extends StructuredDataAccessor> clazz;
         if (format == null) {
             clazz = getAccessorClass(accessorClassName);
@@ -360,5 +370,65 @@ public class AdminHandler {
         } catch (IOException e) {
             throw new CommonException(e);
         }
+    }
+
+    /**
+     * Load commands and parameters from file
+     *
+     * @param filePath file with parameters
+     */
+    public void loadFromFile(String filePath) {
+        List<Command> commands = CommandFactory.getCommands(filePath);
+        LOGGER.info("Loaded {} commands from file '{}'", commands.size(), filePath);
+        int i = 0;
+        for (Command command : commands) {
+            LOGGER.info("Executing {} {} command", ++i, command.getCommandType());
+            switch (command.getCommandType()) {
+                case ADD_KEY:
+                    generateAndSaveReEncryptionKey(
+                            command.getEncryptionAlgorithm(),
+                            command.getMasterKey(),
+                            command.getClientKey(),
+                            command.getCurveName(),
+                            command.getClientType(),
+                            command.getKeyType(),
+                            command.getClientName(),
+                            command.getChannelName(),
+                            command.getExpiredDays(),
+                            command.getExpiredDate(),
+                            command.getFields(),
+                            command.getChannelDataAccessor(),
+                            command.getChannelDataFormat());
+                    break;
+                case DELETE_KEY:
+                    deleteReEncryptionKey(
+                            command.getClientType(),
+                            command.getClientName(),
+                            command.getChannelName(),
+                            command.getFields().iterator().next());
+                    break;
+                case ADD_CHANNEL:
+                    createChannel(
+                            command.getChannelName(),
+                            command.getChannelType(),
+                            command.getChannelDataAccessor(),
+                            command.getChannelDataFormat());
+                    break;
+                case DELETE_CHANNEL:
+                    deleteChannel(command.getChannelName());
+                    break;
+                case GENERATE:
+                    generateKeyPair(
+                            command.getEncryptionAlgorithm(),
+                            command.getCurveName(),
+                            command.getPrivateKeyPath(),
+                            command.getPublicKeyPath());
+                    break;
+                default:
+                    throw new CommonException("Unrecognized command '%s'",
+                            command.getCommandType());
+            }
+        }
+        LOGGER.info("Commands from file '{}' successfully executed", filePath);
     }
 }

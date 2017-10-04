@@ -52,12 +52,13 @@ Option                                       Description
 --delete-key, --remove-key, --rmk            delete the re-encryption key from the storage
 --generate, --gn                             generate key pair and save it to the file or files
 -h, --help                                   print this help
+--lf, --load-file                            load commands and parameters from file
 --list, --ls                                 list all re-encryption keys or channels in the storage
 
 Other parameters
 Option                                                    Description
 ------                                                    -----------
---alg, --algorithm <[BBS98, ElGamal]>                     encryption algorithm (default: ElGamal)
+--alg, --algorithm <[ECIES, BBS98, ElGamal]>              encryption algorithm (default: ElGamal)
 --cac, --channel-accessor-class <String>                  accessor class name (only for channels with granular
                                                             encryption type or keys with fields)
 --cdf, --channel-data-format <[avro, avro_schema_less,    data format (only for channels with granular encryption
@@ -84,6 +85,7 @@ Option                                                    Description
   private_and_public, all, default, def]>
 --master-key, --mk <String>                               path to the master private key file
 --oc, --only-channels                                     list only channels
+--parameters-file, --pf <String>                          path to the file with commands and parameters
 --pbk, --public-key <String>                              path to the public key file
 --private-key, --prk <String>                             path to the private key file
 ```
@@ -151,6 +153,10 @@ Option                                                    Description
 -jar build/libs/nucypher-kafka-admin-1.0-SNAPSHOT.jar --config config-example/config.properties
 --delete-channel --channel topic1`
 
+* Load commands from file
+`java -Djava.security.auth.login.config=config-example/jaas.conf
+-jar build/libs/nucypher-kafka-admin-1.0-SNAPSHOT.jar --config config-example/config.properties
+--load-file --parameters-file config-example/commands.json`
 
 # ZooKeeper ZNode structure
 ZooKeeper stores all metadata in ZNodes like in folders. 
