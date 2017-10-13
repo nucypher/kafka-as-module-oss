@@ -58,7 +58,7 @@ public class SubkeyGenerator {
 
 		try {
 			KeyFactory keyFactory = KeyFactory.getInstance(Constants.KEY_FACTORY_ALGORITHM,
-					Constants.SECURITY_PROVIDER_NAME);
+					Constants.BOUNCY_CASTLE_PROVIDER_NAME);
 			return keyFactory.generatePrivate(privateKeySpec);
 		} catch (Exception e) {
 			throw new CommonException(e);

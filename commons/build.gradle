@@ -37,6 +37,7 @@ dependencies {
 
     compile "com.google.guava:guava:$guavaVersion"
     compile "org.reflections:reflections:$reflectionsVersion"
+    compile "org.apache.commons:commons-crypto:$commonsCryptoVersion"
 
     testCompile "junit:junit:$junitVersion"
     testCompile "org.apache.curator:curator-test:$curatorVersion"

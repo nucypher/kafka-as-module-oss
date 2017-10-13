@@ -1,6 +1,6 @@
 package com.nucypher.kafka.clients
 
-import com.nucypher.kafka.cipher.AbstractCipher
+import com.nucypher.kafka.cipher.ICipher
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager
 import com.nucypher.kafka.utils.AESKeyGenerators
 import com.nucypher.kafka.utils.WrapperReEncryptionKey
@@ -24,7 +24,7 @@ class MessageHandlerSpec extends Specification {
         Key key = DEK
 
         DataEncryptionKeyManager keyManager = Mock()
-        AbstractCipher cipher = Mock()
+        ICipher cipher = Mock()
         MessageHandler messageHandler = new MessageHandler(cipher, keyManager)
 
         when: 'encrypt message'
@@ -52,7 +52,7 @@ class MessageHandlerSpec extends Specification {
                 data, iv, new EncryptedDataEncryptionKey(key.getEncoded()))
 
         DataEncryptionKeyManager keyManager = Mock()
-        AbstractCipher cipher = Mock()
+        ICipher cipher = Mock()
         MessageHandler messageHandler = new MessageHandler(cipher, keyManager)
 
         when: 'decrypt message'

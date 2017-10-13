@@ -1,8 +1,10 @@
 package com.nucypher.kafka.clients.encrypt;
 
 import com.nucypher.crypto.EncryptionAlgorithm;
-import com.nucypher.kafka.cipher.AesGcmCipher;
+import com.nucypher.kafka.cipher.CipherFactory;
+import com.nucypher.kafka.cipher.ICipher;
 import com.nucypher.kafka.clients.MessageHandler;
+import com.nucypher.kafka.clients.MessageSerDeConfig;
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.EncryptionAlgorithmUtils;
@@ -53,15 +55,8 @@ public class AesMessageSerializer<T> implements Serializer<T> {
                                 Class<? extends EncryptionAlgorithm> algorithmClass,
                                 PublicKey publicKey,
                                 Integer maxUsingDEK) {
-        this.serializer = serializer;
-        SecureRandom secureRandom = new SecureRandom();
-        EncryptionAlgorithm algorithm =
-                EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
-        DataEncryptionKeyManager keyManager =
-                new DataEncryptionKeyManager(algorithm, publicKey, secureRandom, maxUsingDEK);
-        AesGcmCipher cipher = new AesGcmCipher();
-        messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
-        isConfigured = true;
+        this(serializer, algorithmClass, publicKey, maxUsingDEK,
+                null, null, null);
     }
 
 
@@ -73,19 +68,30 @@ public class AesMessageSerializer<T> implements Serializer<T> {
      * @param publicKey               public key
      * @param maxUsingDEK             max number of using each DEK
      * @param encryptionCacheCapacity encryption cache capacity
+     * @param provider                data encryption provider
+     * @param transformation          data transformation
      */
     public AesMessageSerializer(Serializer<T> serializer,
                                 Class<? extends EncryptionAlgorithm> algorithmClass,
                                 PublicKey publicKey,
                                 Integer maxUsingDEK,
-                                Integer encryptionCacheCapacity) {
+                                Integer encryptionCacheCapacity,
+                                CipherFactory.CipherProvider provider,
+                                String transformation) {
         this.serializer = serializer;
         SecureRandom secureRandom = new SecureRandom();
         EncryptionAlgorithm algorithm =
                 EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                 algorithm, publicKey, secureRandom, maxUsingDEK, encryptionCacheCapacity);
-        AesGcmCipher cipher = new AesGcmCipher();
+        if (provider == null) {
+            provider = CipherFactory.CipherProvider.valueOf(
+                    MessageSerDeConfig.DATA_ENCRYPTION_PROVIDER_DEFAULT);
+        }
+        if (transformation == null) {
+            transformation = MessageSerDeConfig.DATA_ENCRYPTION_TRANFORMATION_DEFAULT;
+        }
+        ICipher cipher = CipherFactory.getCipher(provider, transformation);
         messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
         isConfigured = true;
     }
@@ -110,11 +116,16 @@ public class AesMessageSerializer<T> implements Serializer<T> {
             Integer cacheCapacity = config.getInt(
                     AesMessageSerializerConfig.CACHE_ENCRYPTION_CAPACITY_CONFIG);
             EncryptionAlgorithm algorithm = EncryptionAlgorithmUtils.getEncryptionAlgorithm(
-                    config.getString(AesMessageSerializerConfig.ALGORITHM_CONFIG));
+                    config.getString(AesMessageSerializerConfig.DEK_ENCRYPTION_ALGORITHM_CONFIG));
             SecureRandom secureRandom = new SecureRandom();
             DataEncryptionKeyManager keyManager = getKeyManager(
                     config, keyPair, maxUsingDEK, cacheCapacity, algorithm, secureRandom);
-            AesGcmCipher cipher = new AesGcmCipher();
+            CipherFactory.CipherProvider provider = CipherFactory.CipherProvider.valueOf(
+                    config.getString(AesMessageSerializerConfig.DATA_ENCRYPTION_PROVIDER_CONFIG)
+                            .toUpperCase());
+            String transformation = config.getString(
+                    AesMessageSerializerConfig.DATA_ENCRYPTION_TRANFORMATION_CONFIG);
+            ICipher cipher = CipherFactory.getCipher(provider, transformation);
             messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
 
             if (isKey) {

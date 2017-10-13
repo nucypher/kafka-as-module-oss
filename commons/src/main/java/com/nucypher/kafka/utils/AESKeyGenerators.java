@@ -11,8 +11,8 @@ import java.security.NoSuchProviderException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.nucypher.kafka.Constants.SECURITY_PROVIDER_NAME;
-import static com.nucypher.kafka.Constants.SYMMETRIC_ALGORITHM;
+import static com.nucypher.kafka.Constants.BOUNCY_CASTLE_PROVIDER_NAME;
+import static com.nucypher.kafka.Constants.AES_ALGORITHM_NAME;
 
 /**
  * AES key generators
@@ -37,7 +37,7 @@ public class AESKeyGenerators {
                 if (keyGenerator == null) {
                     try {
                         keyGenerator = KeyGenerator.getInstance(
-                                SYMMETRIC_ALGORITHM, SECURITY_PROVIDER_NAME);
+                                AES_ALGORITHM_NAME, BOUNCY_CASTLE_PROVIDER_NAME);
                     } catch (NoSuchAlgorithmException | NoSuchProviderException e) {
                         throw new CommonException(e);
                     }

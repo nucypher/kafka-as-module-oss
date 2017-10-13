@@ -1,6 +1,7 @@
 package com.nucypher.kafka.clients.decrypt;
 
 import com.nucypher.crypto.EncryptionAlgorithm;
+import com.nucypher.kafka.cipher.CipherFactory;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessor;
 import com.nucypher.kafka.clients.granular.StructuredMessageHandler;
@@ -31,27 +32,6 @@ public class AesStructuredMessageDeserializer<T> extends AesMessageDeserializer<
     }
 
     /**
-     * @param deserializer      Kafka deserializer
-     * @param algorithmClass    class of encryption algorithm
-     * @param privateKey        EC private key
-     * @param dataAccessorClass data accessor class
-     */
-    public AesStructuredMessageDeserializer(
-            Deserializer<T> deserializer,
-            Class<? extends EncryptionAlgorithm> algorithmClass,
-            PrivateKey privateKey,
-            Class<? extends StructuredDataAccessor> dataAccessorClass) {
-        super(deserializer, algorithmClass, privateKey);
-        try {
-            accessor = dataAccessorClass.newInstance();
-        } catch (InstantiationException | IllegalAccessException e) {
-            throw new CommonException(e);
-        }
-        structuredMessageHandler = new StructuredMessageHandler(messageHandler);
-        isConfigured = true;
-    }
-
-    /**
      * @param deserializer   Kafka deserializer
      * @param algorithmClass class of encryption algorithm
      * @param privateKey     EC private key
@@ -63,6 +43,48 @@ public class AesStructuredMessageDeserializer<T> extends AesMessageDeserializer<
             PrivateKey privateKey,
             DataFormat format) {
         this(deserializer, algorithmClass, privateKey, format.getAccessorClass());
+    }
+
+    /**
+     * @param deserializer      Kafka deserializer
+     * @param algorithmClass    class of encryption algorithm
+     * @param privateKey        EC private key
+     * @param dataAccessorClass data accessor class
+     */
+    public AesStructuredMessageDeserializer(
+            Deserializer<T> deserializer,
+            Class<? extends EncryptionAlgorithm> algorithmClass,
+            PrivateKey privateKey,
+            Class<? extends StructuredDataAccessor> dataAccessorClass) {
+        this(deserializer, algorithmClass, privateKey, dataAccessorClass,
+                null, null, null);
+    }
+
+    /**
+     * @param deserializer            Kafka deserializer
+     * @param algorithmClass          class of encryption algorithm
+     * @param privateKey              EC private key
+     * @param dataAccessorClass       data accessor class
+     * @param decryptionCacheCapacity decryption cache capacity
+     * @param provider                data encryption provider
+     * @param transformation          data transformation
+     */
+    public AesStructuredMessageDeserializer(
+            Deserializer<T> deserializer,
+            Class<? extends EncryptionAlgorithm> algorithmClass,
+            PrivateKey privateKey,
+            Class<? extends StructuredDataAccessor> dataAccessorClass,
+            Integer decryptionCacheCapacity,
+            CipherFactory.CipherProvider provider,
+            String transformation) {
+        super(deserializer, algorithmClass, privateKey, decryptionCacheCapacity, provider, transformation);
+        try {
+            accessor = dataAccessorClass.newInstance();
+        } catch (InstantiationException | IllegalAccessException e) {
+            throw new CommonException(e);
+        }
+        structuredMessageHandler = new StructuredMessageHandler(messageHandler);
+        isConfigured = true;
     }
 
     @Override

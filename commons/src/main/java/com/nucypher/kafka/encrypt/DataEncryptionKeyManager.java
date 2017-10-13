@@ -462,7 +462,7 @@ public class DataEncryptionKeyManager {
         } else {
             key = decryptReEncryptionEDEK(privateKey, edek);
         }
-        return AESKeyGenerators.create(key, Constants.SYMMETRIC_ALGORITHM);
+        return AESKeyGenerators.create(key, Constants.AES_ALGORITHM_NAME);
     }
 
     private byte[] decryptReEncryptionEDEK(PrivateKey privateKey, byte[] bytes) {

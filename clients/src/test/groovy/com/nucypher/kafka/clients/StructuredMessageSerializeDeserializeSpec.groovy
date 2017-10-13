@@ -2,7 +2,6 @@ package com.nucypher.kafka.clients
 
 import com.nucypher.crypto.EncryptionAlgorithm
 import com.nucypher.kafka.TestUtils
-import com.nucypher.kafka.clients.decrypt.AesMessageDeserializer
 import com.nucypher.kafka.clients.decrypt.AesMessageDeserializerConfig
 import com.nucypher.kafka.clients.decrypt.AesStructuredMessageDeserializer
 import com.nucypher.kafka.clients.encrypt.AesMessageSerializerConfig
@@ -121,6 +120,8 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
                         StructuredDataAccessorStub.class,
                         null,
                         true,
+                        null,
+                        null,
                         null
                 )
         AesStructuredMessageDeserializer<String> deserializer =
@@ -157,7 +158,7 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         AesStructuredMessageSerializer<String> serializer =
                 new AesStructuredMessageSerializer()
         Map<String, ?> configs = new HashMap<>()
-        configs.put(MessageSerDeConfig.ALGORITHM_CONFIG, ALGORITHM.getCanonicalName())
+        configs.put(MessageSerDeConfig.DEK_ENCRYPTION_ALGORITHM_CONFIG, ALGORITHM.getCanonicalName())
         configs.put(AesMessageSerializerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
                 StringSerializer.class.getCanonicalName())
         configs.put(AesMessageSerializerConfig.PUBLIC_KEY_CONFIG,
@@ -169,7 +170,7 @@ class StructuredMessageSerializeDeserializeSpec extends Specification {
         AesStructuredMessageDeserializer<String> deserializer =
                 new AesStructuredMessageDeserializer<>()
         configs = new HashMap<>()
-        configs.put(MessageSerDeConfig.ALGORITHM_CONFIG, ALGORITHM.getCanonicalName())
+        configs.put(MessageSerDeConfig.DEK_ENCRYPTION_ALGORITHM_CONFIG, ALGORITHM.getCanonicalName())
             configs.put(AesMessageDeserializerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
                 StringDeserializer.class.getCanonicalName())
         configs.put(AesMessageDeserializerConfig.PRIVATE_KEY_CONFIG,

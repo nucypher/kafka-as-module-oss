@@ -1,6 +1,6 @@
 package com.nucypher.kafka.clients;
 
-import com.nucypher.kafka.cipher.AbstractCipher;
+import com.nucypher.kafka.cipher.ICipher;
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.utils.WrapperReEncryptionKey;
 
@@ -12,8 +12,10 @@ import java.security.SecureRandom;
  */
 public class MessageHandler {
 
+    private static final int IV_SIZE = 16;
+
     private SecureRandom secureRandom;
-    private AbstractCipher cipher;
+    private ICipher cipher;
     private DataEncryptionKeyManager keyManager;
 
     /**
@@ -39,7 +41,7 @@ public class MessageHandler {
      * @param keyManager   DEK manager
      * @param secureRandom secure random
      */
-    public MessageHandler(AbstractCipher cipher,
+    public MessageHandler(ICipher cipher,
                           DataEncryptionKeyManager keyManager,
                           SecureRandom secureRandom) {
         this.cipher = cipher;
@@ -53,7 +55,7 @@ public class MessageHandler {
      * @param cipher     cipher
      * @param keyManager DEK manager
      */
-    public MessageHandler(AbstractCipher cipher,
+    public MessageHandler(ICipher cipher,
                           DataEncryptionKeyManager keyManager) {
         this(cipher, keyManager, new SecureRandom());
     }
@@ -81,7 +83,7 @@ public class MessageHandler {
      * @return encrypted {@link Message}
      */
     public Message encryptMessage(byte[] data, Key dek) {
-        byte[] iv = new byte[dek.getEncoded().length];
+        byte[] iv = new byte[IV_SIZE];
         secureRandom.nextBytes(iv);
 
         byte[] encryptedData = cipher.encrypt(data, dek, iv);

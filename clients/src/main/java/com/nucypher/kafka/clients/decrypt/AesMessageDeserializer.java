@@ -1,8 +1,11 @@
 package com.nucypher.kafka.clients.decrypt;
 
 import com.nucypher.crypto.EncryptionAlgorithm;
-import com.nucypher.kafka.cipher.AesGcmCipher;
+import com.nucypher.kafka.cipher.CipherFactory;
+import com.nucypher.kafka.cipher.ICipher;
 import com.nucypher.kafka.clients.MessageHandler;
+import com.nucypher.kafka.clients.MessageSerDeConfig;
+import com.nucypher.kafka.clients.encrypt.AesMessageSerializerConfig;
 import com.nucypher.kafka.encrypt.DataEncryptionKeyManager;
 import com.nucypher.kafka.errors.CommonException;
 import com.nucypher.kafka.utils.EncryptionAlgorithmUtils;
@@ -49,7 +52,8 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
     public AesMessageDeserializer(Deserializer<T> deserializer,
                                   Class<? extends EncryptionAlgorithm> algorithmClass,
                                   PrivateKey privateKey) {
-        this(deserializer, algorithmClass, privateKey, null);
+        this(deserializer, algorithmClass, privateKey,
+                null, null, null);
     }
 
     /**
@@ -59,17 +63,28 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
      * @param algorithmClass          class of encryption algorithm
      * @param privateKey              EC private key
      * @param decryptionCacheCapacity decryption cache capacity
+     * @param provider                data encryption provider
+     * @param transformation          data transformation
      */
     public AesMessageDeserializer(Deserializer<T> deserializer,
                                   Class<? extends EncryptionAlgorithm> algorithmClass,
                                   PrivateKey privateKey,
-                                  Integer decryptionCacheCapacity) {
+                                  Integer decryptionCacheCapacity,
+                                  CipherFactory.CipherProvider provider,
+                                  String transformation) {
         this.deserializer = deserializer;
         EncryptionAlgorithm algorithm =
                 EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                 algorithm, privateKey, decryptionCacheCapacity);
-        AesGcmCipher cipher = new AesGcmCipher();
+        if (provider == null) {
+            provider = CipherFactory.CipherProvider.valueOf(
+                    MessageSerDeConfig.DATA_ENCRYPTION_PROVIDER_DEFAULT);
+        }
+        if (transformation == null) {
+            transformation = MessageSerDeConfig.DATA_ENCRYPTION_TRANFORMATION_DEFAULT;
+        }
+        ICipher cipher = CipherFactory.getCipher(provider, transformation);
         messageHandler = new MessageHandler(cipher, keyManager, null);
         isConfigured = true;
     }
@@ -92,10 +107,15 @@ public class AesMessageDeserializer<T> implements Deserializer<T> {
             Integer cacheCapacity = config.getInt(
                     AesMessageDeserializerConfig.CACHE_DECRYPTION_CAPACITY_CONFIG);
             EncryptionAlgorithm algorithm = EncryptionAlgorithmUtils.getEncryptionAlgorithm(
-                    config.getString(AesMessageDeserializerConfig.ALGORITHM_CONFIG));
+                    config.getString(AesMessageDeserializerConfig.DEK_ENCRYPTION_ALGORITHM_CONFIG));
             DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                     algorithm, privateKey, cacheCapacity);
-            AesGcmCipher cipher = new AesGcmCipher();
+            CipherFactory.CipherProvider provider = CipherFactory.CipherProvider.valueOf(
+                    config.getString(AesMessageSerializerConfig.DATA_ENCRYPTION_PROVIDER_CONFIG)
+                            .toUpperCase());
+            String transformation = config.getString(
+                    AesMessageSerializerConfig.DATA_ENCRYPTION_TRANFORMATION_CONFIG);
+            ICipher cipher = CipherFactory.getCipher(provider, transformation);
             messageHandler = new MessageHandler(cipher, keyManager, null);
 
             if (isKey) {

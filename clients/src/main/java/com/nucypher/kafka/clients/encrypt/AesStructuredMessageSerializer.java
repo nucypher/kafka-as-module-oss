@@ -1,8 +1,10 @@
 package com.nucypher.kafka.clients.encrypt;
 
 import com.nucypher.crypto.EncryptionAlgorithm;
-import com.nucypher.kafka.cipher.AesGcmCipher;
+import com.nucypher.kafka.cipher.CipherFactory;
+import com.nucypher.kafka.cipher.ICipher;
 import com.nucypher.kafka.clients.MessageHandler;
+import com.nucypher.kafka.clients.MessageSerDeConfig;
 import com.nucypher.kafka.clients.granular.DataFormat;
 import com.nucypher.kafka.clients.granular.StructuredDataAccessor;
 import com.nucypher.kafka.clients.granular.StructuredMessageHandler;
@@ -135,6 +137,8 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
      * @param fields                  collection of fields to encryption
      * @param useDerivedKeys          use derived keys
      * @param encryptionCacheCapacity encryption cache capacity
+     * @param provider                data encryption provider
+     * @param transformation          data transformation
      */
     public AesStructuredMessageSerializer(
             Serializer<T> serializer,
@@ -144,14 +148,23 @@ public class AesStructuredMessageSerializer<T> extends AesMessageSerializer<T> {
             Class<? extends StructuredDataAccessor> dataAccessorClass,
             Set<String> fields,
             boolean useDerivedKeys,
-            Integer encryptionCacheCapacity) {
+            Integer encryptionCacheCapacity,
+            CipherFactory.CipherProvider provider,
+            String transformation) {
         this.serializer = serializer;
         SecureRandom secureRandom = new SecureRandom();
         EncryptionAlgorithm algorithm =
                 EncryptionAlgorithmUtils.getEncryptionAlgorithmByClass(algorithmClass);
         DataEncryptionKeyManager keyManager = new DataEncryptionKeyManager(
                 algorithm, keyPair, secureRandom, useDerivedKeys, maxUsingDEK, encryptionCacheCapacity);
-        AesGcmCipher cipher = new AesGcmCipher();
+        if (provider == null) {
+            provider = CipherFactory.CipherProvider.valueOf(
+                    MessageSerDeConfig.DATA_ENCRYPTION_PROVIDER_DEFAULT);
+        }
+        if (transformation == null) {
+            transformation = MessageSerDeConfig.DATA_ENCRYPTION_TRANFORMATION_DEFAULT;
+        }
+        ICipher cipher = CipherFactory.getCipher(provider, transformation);
         messageHandler = new MessageHandler(cipher, keyManager, secureRandom);
         try {
             accessor = dataAccessorClass.newInstance();
